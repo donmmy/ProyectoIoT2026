@@ -12,6 +12,7 @@ depende de IA en tiempo de ejecución.
 | 2026-10-18 | Claude (Claude Code) | Hitos 1–4 | Refactor en el paquete `iot_scanner/` (discovery, sniffer, heuristics, report), CLI nueva, tests con tráfico sintético, README. |
 | 2026-10-21 | Claude (Claude Code) | Ampliación Hito 2 | Extractores NTP y TLS SNI, soporte IPv6, reglas Matter/Thread, tests y tráfico sintético nuevos. Revisado con el autor junto a `programa_codigos.md`. |
 | 2026-10-25 | Claude (Claude Code) | Hito 3 | Pesos por especificidad de la evidencia, umbrales sobre la suma, regex con inicio de palabra, sin doble conteo servidor/cliente; 5 tests nuevos. Propuesto por la IA tras revisar fallos con el autor; el autor decidió implementarlo. |
+| 2026-10-25 | Claude (Claude Code) | Interfaz gráfica | `gui.py` (tkinter) y `abrir_interfaz.bat`; 3 tests nuevos. Revisada con captura de pantalla sobre el pcap de ejemplo. |
 
 ### Prompt principal (2026-10-18)
 
@@ -28,10 +29,13 @@ depende de IA en tiempo de ejecución.
 > "implementalo, documentalo para agent y subelo al git"
 > (tras ver casos mal clasificados y preguntar si quitar peso a los puertos típicos
 > no perdía información sobre el IoT).
+### Prompt de la interfaz gráfica (2026-10-25)
+
+> "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 31 casos sobre tráfico sintético (todos pasan).
+- **Pruebas funcionales:** `pytest` con 34 casos sobre tráfico sintético (todos pasan).
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la
   red (hostname DHCP/mDNS, banners SSDP, SNI de TLS) se sanea y recorta; el parser

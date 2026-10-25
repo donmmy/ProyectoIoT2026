@@ -17,7 +17,23 @@ pip install -r requirements.txt
 - Windows: instalar [Npcap](https://npcap.com) y ejecutar la consola como administrador.
 - Linux/Mac: ejecutar con `sudo`.
 
-## Uso
+## Interfaz gráfica (sin comandos)
+
+En Windows, doble clic en **`abrir_interfaz.bat`**: pide permisos de administrador
+(necesarios para capturar en vivo) y abre la ventana. También: `python gui.py`.
+
+En la ventana se elige el modo (ARP + escucha, solo escucha, solo ARP o analizar un
+`.pcap`), la interfaz, la red y los tiempos, y se pulsa **Iniciar análisis**. Pestañas:
+
+- **Dispositivos**: tabla ordenable; al seleccionar uno se ven sus etiquetas candidatas
+  con las evidencias y puntos, protocolos, puertos, DNS, SNI, NTP, IPv6 y banners.
+- **Alertas**: coloreadas por severidad.
+- **Resumen** y **Registro** (la salida que daría la CLI).
+- Botones **Exportar JSON / CSV**.
+
+El modo `.pcap` no necesita permisos de administrador.
+
+## Uso por línea de comandos
 
 ```bash
 python net_device_scanner.py                                # autodetecta interfaz y red
@@ -45,7 +61,8 @@ python net_device_scanner.py --pcap ejemplo_lab.pcap
 | 3 | `iot_scanner/heuristics.py` | Tabla de reglas (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...). Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
 | 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...). |
 
-`iot_scanner/device.py` define el modelo de datos común y `net_device_scanner.py` es la CLI.
+`iot_scanner/device.py` define el modelo de datos común, `net_device_scanner.py` es la CLI y
+`gui.py` la interfaz gráfica (tkinter, incluido en Python; reutiliza las funciones de la CLI).
 
 ## Tests
 

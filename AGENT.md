@@ -44,6 +44,9 @@ la subida inicial a GitHub; se ha mantenido).
 
 ```
 net_device_scanner.py   CLI / punto de entrada (argparse)
+gui.py                  interfaz gráfica tkinter; build_argv() traduce la ventana a argumentos
+                        de la CLI y run_analysis() reutiliza parse_args/run_live/sniff_pcap
+abrir_interfaz.bat      lanzador Windows con doble clic (pide administrador vía UAC)
 iot_scanner/
   device.py             dataclass Device (modelo común a todos los módulos)
   discovery.py          Hito 1: guess_network, validate_network, vendor_from_mac, arp_scan
@@ -137,7 +140,9 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 - [x] `AI_USAGE.md` (lo exige el PDF). Falta que el autor complete la fila del prototipo inicial.
 - [x] `flake8 --max-line-length 120` sin avisos.
 - [ ] `bandit`: no instala en Python 3.15 (PyYAML no compila); ejecutarlo con Python 3.11–3.13.
-- [x] Commits separados por hito con etiqueta `[IA]` en la rama `hitos-1-4` (subida a GitHub, sin PR aún).
+- [x] Commits separados por hito con etiqueta `[IA]` en la rama `hitos-1-4`; PR #1 hacia `main` abierto.
+- [x] Interfaz gráfica (`gui.py`). Limitación: la escucha en vivo no se puede cortar antes de
+  tiempo (usa el timeout de `sniff`); si se añade, usar `stop_filter`/`AsyncSniffer`.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
 - [ ] Hito 5 (opcional): triaje con IA sobre datos anonimizados y ya saneados.
 - [ ] Futuro: capturar el **tráfico unicast** de los dispositivos. Hoy, en una red con
@@ -161,3 +166,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 - **2026-10-25** — Revisión del Hito 3 con el autor: pesos por especificidad de la pista,
   regex con inicio de palabra y sin doble conteo servidor/cliente. Tests 26 → 31,
   flake8 limpio. Asistido por Claude (Claude Code). Subido a `hitos-1-4`.
+- **2026-10-25** — Interfaz gráfica `gui.py` (tkinter, sin dependencias nuevas) y lanzador
+  `abrir_interfaz.bat`. El análisis corre en un hilo y sus `print` se redirigen a la pestaña
+  Registro. Tests 31 → 34 (`tests/test_gui.py`, se salta si no hay pantalla). Asistido por
+  Claude (Claude Code).
