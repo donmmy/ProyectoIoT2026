@@ -10,18 +10,32 @@ depende de IA en tiempo de ejecución.
 |---|---|---|---|
 | (inicial) | — | `net_device_scanner.py` v0 | Prototipo con ARP scan + sniffer básico. |
 | 2026-10-18 | Claude (Claude Code) | Hitos 1–4 | Refactor en el paquete `iot_scanner/` (discovery, sniffer, heuristics, report), CLI nueva, tests con tráfico sintético, README. |
+| 2026-10-21 | Claude (Claude Code) | Ampliación Hito 2 | Extractores NTP y TLS SNI, soporte IPv6, reglas Matter/Thread, tests y tráfico sintético nuevos. Revisado con el autor junto a `programa_codigos.md`. |
+| 2026-10-25 | Claude (Claude Code) | Hito 3 | Pesos por especificidad de la evidencia, umbrales sobre la suma, regex con inicio de palabra, sin doble conteo servidor/cliente; 5 tests nuevos. Propuesto por la IA tras revisar fallos con el autor; el autor decidió implementarlo. |
 
 ### Prompt principal (2026-10-18)
 
 > "Ya vamos tarde, si me puedes ayudar a completar de hitos 1-4"
 > (adjuntando el documento de planteamiento con la descripción de los hitos).
 
+### Prompt de la ampliación (2026-10-21)
+
+> "si me parece interesante añadir los protocolos ntp + tls(sni) + matter/thread"
+> (tras repasar qué protocolos de capa 7 no miraba el sniffer).
+
+### Prompt de los pesos del Hito 3 (2026-10-25)
+
+> "implementalo, documentalo para agent y subelo al git"
+> (tras ver casos mal clasificados y preguntar si quitar peso a los puertos típicos
+> no perdía información sobre el IoT).
+
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 18 casos sobre tráfico sintético (todos pasan).
+- **Pruebas funcionales:** `pytest` con 31 casos sobre tráfico sintético (todos pasan).
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la
-  red (hostname DHCP/mDNS, banners SSDP) se sanea y recorta; el CSV escapa
+  red (hostname DHCP/mDNS, banners SSDP, SNI de TLS) se sanea y recorta; el parser
+  del ClientHello comprueba límites y devuelve `None` si el mensaje está cortado; el CSV escapa
   celdas que empiezan por `=`, `+`, `-` o `@`.
 - **Linting:** `flake8` sin avisos. `bandit` pendiente (no se pudo instalar en Python 3.15
   por PyYAML; ejecutar en Python 3.11–3.13).
@@ -29,4 +43,5 @@ depende de IA en tiempo de ejecución.
 ## Pendiente de revisión humana
 
 - Ajustar la tabla de reglas de `heuristics.py` con los dispositivos reales del laboratorio.
-- Revisar los umbrales de confianza (1 = baja, 2 = media, 3+ = alta).
+- Calibrar pesos (fuerte 3 / media 2 / débil 1) y umbrales (baja 1-2, media 3-4, alta ≥5)
+  con los dispositivos reales del laboratorio (Hito 6).

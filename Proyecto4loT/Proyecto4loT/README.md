@@ -42,7 +42,7 @@ python net_device_scanner.py --pcap ejemplo_lab.pcap
 |---|---|---|
 | 1 | `iot_scanner/discovery.py` | Autodetección de interfaz y CIDR, ARP scan, fabricante por OUI (detecta MAC aleatorias). Si nadie responde al ARP (aislamiento de clientes) se pasa a modo solo-escucha. |
 | 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS, banners SSDP y vendor class DHCP. Todo texto de red se sanea. |
-| 3 | `iot_scanner/heuristics.py` | Tabla de reglas (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...). Hasta 3 etiquetas por dispositivo con puntuación = nº de evidencias y confianza baja/media/alta. |
+| 3 | `iot_scanner/heuristics.py` | Tabla de reglas (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...). Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
 | 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...). |
 
 `iot_scanner/device.py` define el modelo de datos común y `net_device_scanner.py` es la CLI.
