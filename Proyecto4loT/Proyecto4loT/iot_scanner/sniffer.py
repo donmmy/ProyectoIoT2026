@@ -4,6 +4,8 @@ Hito 2 — Sniffing pasivo y extracción de metadatos.
 - Captura continua en la interfaz (o lectura de un .pcap), agregando por MAC origen.
 - Extracción de protocolos (TCP/UDP/DNS/DHCP/mDNS/SSDP) y puertos por dispositivo.
 - Hostname anunciado por DHCP (opción 12) o mDNS.
+- Ampliación: NTP (servidores de hora consultados), TLS (SNI del ClientHello) e
+  IPv6 (direcciones; Matter/Thread se anuncian por mDNS sobre IPv6).
 
 Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
@@ -11,7 +13,7 @@ guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 
 import re
 
-from scapy.all import ARP, DHCP, DNS, IP, TCP, UDP, Ether, Raw, rdpcap, sniff
+from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, Ether, IPv6, Raw, rdpcap, sniff
 
 from .device import Device
 from .discovery import vendor_from_mac
@@ -19,8 +21,16 @@ from .discovery import vendor_from_mac
 PORT_MDNS = 5353
 PORT_SSDP = 1900
 PORT_DHCP = (67, 68)
+PORT_NTP = 123
+PORT_MATTER = 5540
 EPHEMERAL_START = 49152
-UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684}  # servicios UDP altos que delatan a un servidor
+# Servicios UDP altos que delatan a un servidor: SSDP, CoAP/CoAPs y Matter
+UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684, PORT_MATTER}
+# Puertos bajos que también usa el lado cliente: no prueban que el dispositivo sirva nada
+# (NTP se decide por el campo mode del paquete, ver _parse_ntp)
+UDP_CLIENT_LOW_PORTS = {*PORT_DHCP, PORT_NTP}
+NTP_CLIENT_MODE = 3
+NTP_SERVER_MODES = (4, 5)  # respuesta de servidor y broadcast
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")
 
@@ -107,6 +117,53 @@ def _parse_ssdp(pkt, dev):
             dev.add("banners", "SSDP:" + (sanitize_text(val, 96) or ""))
 
 
+def _parse_ntp(pkt, dev, ip_dst):
+    """mode 3 = el dispositivo pide la hora (cliente); 4/5 = la sirve."""
+    dev.protocols.add("NTP")
+    mode = getattr(pkt[NTP], "mode", None)
+    if mode == NTP_CLIENT_MODE and ip_dst:
+        dev.add("ntp_servers", ip_dst)
+    elif mode in NTP_SERVER_MODES:
+        dev.add("ports_src", PORT_NTP)
+
+
+def _u16(data, pos):
+    return int.from_bytes(data[pos:pos + 2], "big")
+
+
+def tls_sni(data):
+    """
+    Devuelve el SNI (nombre del servidor) de un TLS ClientHello, o None.
+
+    El ClientHello viaja en claro aunque la conexión vaya cifrada. Solo se mira el
+    primer segmento TCP: si el ClientHello es más largo y el SNI cae en otro
+    segmento, no se encuentra.
+    """
+    try:
+        # Registro TLS: tipo 0x16 (handshake), versión 0x03xx; mensaje 0x01 (ClientHello)
+        if len(data) < 6 or data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01:
+            return None
+        pos = 5 + 4 + 2 + 32                 # cabecera registro + handshake, versión, random
+        pos += 1 + data[pos]                 # session id
+        pos += 2 + _u16(data, pos)           # cipher suites
+        pos += 1 + data[pos]                 # métodos de compresión
+        end = min(pos + 2 + _u16(data, pos), len(data))
+        pos += 2
+        while pos + 4 <= end:
+            ext_type, ext_len = _u16(data, pos), _u16(data, pos + 2)
+            pos += 4
+            if ext_type == 0x0000:           # server_name: lista(2) tipo(1) longitud(2) nombre
+                if data[pos + 2] != 0:       # 0 = host_name
+                    return None
+                n = _u16(data, pos + 3)
+                name = data[pos + 5:pos + 5 + n]
+                return name.decode("ascii", errors="ignore") if len(name) == n else None
+            pos += ext_len
+    except IndexError:
+        pass
+    return None
+
+
 # ----------------------------------------------------------------------
 # Callback principal
 # ----------------------------------------------------------------------
@@ -144,10 +201,16 @@ class PassiveSniffer:
             if psrc and psrc != "0.0.0.0" and not dev.ip:
                 dev.ip = psrc
 
+        ip_dst = None
         if pkt.haslayer(IP):
-            ip_src = pkt[IP].src
+            ip_src, ip_dst = pkt[IP].src, pkt[IP].dst
             if ip_src != "0.0.0.0" and (not dev.ip or dev.ip == "0.0.0.0"):
                 dev.ip = ip_src
+        elif pkt.haslayer(IPv6):
+            dev.protocols.add("IPv6")
+            ip_dst = pkt[IPv6].dst
+            if pkt[IPv6].src != "::":
+                dev.add("ipv6", pkt[IPv6].src)
 
         sport = dport = None
         if pkt.haslayer(TCP):
@@ -156,6 +219,11 @@ class PassiveSniffer:
             # SYN+ACK => el dispositivo está sirviendo ese puerto
             if pkt[TCP].flags & 0x12 == 0x12:
                 dev.add("ports_src", sport)
+            if pkt.haslayer(Raw):
+                sni = sanitize_text(tls_sni(bytes(pkt[Raw].load)), 128)
+                if sni:
+                    dev.protocols.add("TLS")
+                    dev.add("tls_sni", sni.rstrip(".").lower())
         elif pkt.haslayer(UDP):
             dev.protocols.add("UDP")
             sport, dport = pkt[UDP].sport, pkt[UDP].dport
@@ -165,9 +233,11 @@ class PassiveSniffer:
                 dev.add("ports_dst", dport)
             # Puerto origen bajo (o conocido) => probablemente servicio propio
             if pkt.haslayer(UDP) and (sport in UDP_SERVER_PORTS or
-                                      (sport < 1024 and sport not in PORT_DHCP)):
+                                      (sport < 1024 and sport not in UDP_CLIENT_LOW_PORTS)):
                 dev.add("ports_src", sport)
 
+        if PORT_NTP in (sport, dport) and pkt.haslayer(NTP):
+            _parse_ntp(pkt, dev, ip_dst)
         if pkt.haslayer(DHCP):
             _parse_dhcp(pkt, dev)
         if pkt.haslayer(DNS):

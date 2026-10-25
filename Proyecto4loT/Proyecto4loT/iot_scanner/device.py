@@ -19,6 +19,9 @@ class Device:
     dns_queries: set = field(default_factory=set)  # dominios que resuelve
     mdns_services: set = field(default_factory=set)  # p.ej. _googlecast._tcp
     banners: set = field(default_factory=set)      # SSDP SERVER, DHCP vendor class...
+    ipv6: set = field(default_factory=set)         # direcciones IPv6 (Matter/Thread usan IPv6)
+    tls_sni: set = field(default_factory=set)      # servidores TLS a los que se conecta (SNI)
+    ntp_servers: set = field(default_factory=set)  # servidores NTP que consulta
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
 
@@ -42,5 +45,8 @@ class Device:
             "dns_queries": sorted(self.dns_queries),
             "mdns_services": sorted(self.mdns_services),
             "banners": sorted(self.banners),
+            "ipv6": sorted(self.ipv6),
+            "tls_sni": sorted(self.tls_sni),
+            "ntp_servers": sorted(self.ntp_servers),
             "labels": self.labels,
         }

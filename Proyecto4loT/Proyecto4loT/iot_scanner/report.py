@@ -145,7 +145,8 @@ def export_json(devices, summary, path):
 
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
-              "ports_src", "ports_dst", "mdns_services", "banners"]
+              "ports_src", "ports_dst", "mdns_services", "banners",
+              "ipv6", "tls_sni", "ntp_servers"]
 
 
 def _csv_safe(value):
@@ -172,6 +173,9 @@ def export_csv(devices, path):
                 "ports_dst": " ".join(map(str, sorted(d.ports_dst))),
                 "mdns_services": " ".join(sorted(d.mdns_services)),
                 "banners": " | ".join(sorted(d.banners)),
+                "ipv6": " ".join(sorted(d.ipv6)),
+                "tls_sni": " ".join(sorted(d.tls_sni)),
+                "ntp_servers": " ".join(sorted(d.ntp_servers)),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
     print(f"[*] CSV guardado en {path}")
