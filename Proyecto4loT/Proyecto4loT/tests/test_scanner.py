@@ -5,7 +5,7 @@ import pytest
 
 from iot_scanner import discovery, heuristics, report
 from iot_scanner.device import Device
-from iot_scanner.sniffer import PassiveSniffer, sanitize_text
+from iot_scanner.sniffer import PassiveSniffer, sanitize_text, tls_sni
 from tests import lab_packets as lab
 
 
@@ -40,7 +40,7 @@ def test_vendor_unknown_never_returns_mac():
 # ---------------- Hito 2 ----------------
 
 def test_multicast_source_ignored_and_devices_aggregated(devices):
-    assert set(devices) == {lab.CAM, lab.CAST, lab.PLUG, lab.SENSOR, lab.EVIL}
+    assert set(devices) == {lab.CAM, lab.CAST, lab.PLUG, lab.SENSOR, lab.EVIL, lab.MATTER}
 
 
 def test_arp_gives_ip_in_passive_mode(devices):
@@ -82,6 +82,75 @@ def test_sanitize_strips_injection(devices):
     assert sanitize_text(b"\x00\x01") is None
 
 
+# ---------------- Ampliación: NTP, TLS (SNI), Matter/Thread ----------------
+
+def _sniff(*pkts):
+    s = PassiveSniffer()
+    for pkt in pkts:
+        s.handle_packet(pkt)
+    return s.devices
+
+
+def test_ntp_client_is_not_a_server(devices):
+    cam = devices[lab.CAM]
+    assert "NTP" in cam.protocols
+    assert lab.NTP_SERVER in cam.ntp_servers
+    assert 123 not in cam.ports_src  # ntpd usa 123 también como cliente
+
+
+def test_ntp_server_mode_marks_served_port():
+    from scapy.all import IP, UDP, Ether, NTPHeader
+    mac = "00:11:22:00:00:99"
+    devs = _sniff(Ether(src=mac) / IP(src="192.168.1.1", dst="192.168.1.10") /
+                  UDP(sport=123, dport=40000) / NTPHeader(mode=4))
+    assert 123 in devs[mac].ports_src
+    assert not devs[mac].ntp_servers
+
+
+def test_tls_sni_extracted_and_used_as_evidence(devices):
+    cam = devices[lab.CAM]
+    assert "api.hik-connect.com" in cam.tls_sni
+    assert "TLS" in cam.protocols
+    assert 443 in cam.ports_dst
+
+
+def test_tls_sni_parser_edge_cases():
+    hello = lab.client_hello("a.example.com")
+    assert tls_sni(hello) == "a.example.com"
+    assert tls_sni(hello[:60]) is None         # ClientHello cortado en otro segmento
+    assert tls_sni(b"GET / HTTP/1.1\r\n") is None
+    assert tls_sni(b"") is None
+    assert tls_sni(b"\x16\x03\x01\x00\x05\x01") is None
+
+
+def test_tls_sni_is_sanitized(devices):
+    sni = devices[lab.EVIL].tls_sni
+    assert sni and all(c not in s for s in sni for c in "<>;\x1b[")
+
+
+def test_sni_counts_as_domain_evidence():
+    d = Device(mac="aa", tls_sni={"a3.tuyaeu.com"})
+    assert heuristics.classify(d)[0]["evidence"] == ["TLS a a3.tuyaeu.com (+3)"]
+
+
+def test_matter_over_ipv6(devices):
+    bulb = devices[lab.MATTER]
+    assert "IPv6" in bulb.protocols
+    assert "fe80::daa0:11ff:fe00:6" in bulb.ipv6
+    assert bulb.ip is None
+    assert "_matter._tcp" in bulb.mdns_services
+    assert 5540 in bulb.ports_src
+    assert bulb.hostname == "D8A011000006"
+    assert _labels(bulb)[0] == "Dispositivo Matter"
+
+
+def test_thread_border_router_rule():
+    d = Device(mac="aa", mdns_services={"_meshcop._udp", "_trel._udp"})
+    best = heuristics.classify(d)[0]
+    assert best["label"] == "Border router Thread / controlador Matter"
+    assert best["confidence"] == "alta"  # dos servicios mDNS específicos (3 + 3)
+
+
 # ---------------- Hito 3 ----------------
 
 def _labels(dev):
@@ -113,6 +182,43 @@ def test_labels_limited_and_sorted():
     assert [c["score"] for c in labels] == sorted((c["score"] for c in labels), reverse=True)
 
 
+def _best(dev):
+    labels = heuristics.classify(dev)
+    return (labels[0]["label"], labels[0]["confidence"], labels[0]["score"]) if labels else None
+
+
+def test_weights_specific_vs_generic_ports():
+    # Un puerto propietario solo ya da confianza media; el 80 solo, baja
+    assert _best(Device(mac="aa", ports_src={37777})) == ("Cámara IP / NVR", "media", 3)
+    assert _best(Device(mac="aa", ports_src={80}))[1:] == ("baja", 1)
+
+
+def test_vendor_alone_is_weak_evidence():
+    # Fabricante ≠ tipo: un móvil Google o Samsung no pasa de "baja" como TV
+    label, conf, score = _best(Device(mac="aa", vendor="Google, Inc."))
+    assert (conf, score) == ("baja", 1)
+    ev = heuristics.classify(Device(mac="aa", vendor="Google, Inc."))[0]["evidence"]
+    assert ev == ["fabricante 'Google' (+1)"]
+
+
+def test_text_regex_needs_word_start():
+    assert heuristics.classify(Device(mac="aa", hostname="despacho-pc")) == []
+    assert _best(Device(mac="aa", hostname="ESP_32AB12"))[0] == "Dispositivo MQTT (sensor/actuador IoT)"
+    assert _best(Device(mac="aa", banners={"SSDP:Linux UPnP/1.0 IPCamera"}))[0] == "Cámara IP / NVR"
+
+
+def test_same_port_served_and_client_counts_once():
+    labels = heuristics.classify(Device(mac="aa", ports_src={1900}, ports_dst={1900}))
+    upnp = next(c for c in labels if c["label"] == "Dispositivo UPnP / multimedia")
+    assert upnp["evidence"] == ["sirve puerto 1900 (+1)"]
+
+
+def test_weights_do_not_hide_alerts():
+    # El 80 pesa poco para identificar, pero la alerta de seguridad sigue saliendo
+    d = Device(mac="aa", ip="192.168.1.99", ports_src={80})
+    assert any(a["port"] == 80 for a in report.build_alerts({"aa": d}))
+
+
 # ---------------- Hito 4 ----------------
 
 def test_alerts(devices):
@@ -126,7 +232,7 @@ def test_alerts(devices):
 
 def test_summary(devices):
     s = report.build_summary(devices, {"mode": "test"})
-    assert s["device_count"] == 5
+    assert s["device_count"] == 6
     assert s["mode"] == "test"
     assert dict(s["top_protocols"])["UDP"] >= 3
 
@@ -138,11 +244,11 @@ def test_export_json_csv(devices, tmp_path, capsys):
     report.export_csv(devices, cp)
 
     data = json.loads(jp.read_text(encoding="utf-8"))
-    assert len(data["devices"]) == 5
+    assert len(data["devices"]) == 6
     assert data["summary"]["alerts"]
 
     rows = list(csv.DictReader(cp.open(encoding="utf-8-sig"), delimiter=";"))
-    assert len(rows) == 5
+    assert len(rows) == 6
     # Ninguna celda debe empezar por un carácter de fórmula
     for r in rows:
         for v in r.values():
@@ -163,4 +269,4 @@ def test_cli_pcap(tmp_path, capsys):
     assert net_device_scanner.main(["--pcap", str(pcap), "-o", str(out_json)]) == 0
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data["summary"]["mode"] == "pcap"
-    assert data["summary"]["device_count"] == 5
+    assert data["summary"]["device_count"] == 6
