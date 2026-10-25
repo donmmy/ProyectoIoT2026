@@ -23,7 +23,15 @@ from tkinter import filedialog, messagebox, ttk
 try:
     from scapy.all import conf
 except ImportError:
-    print("[!] Falta scapy. Instálalo con: pip install -r requirements.txt")
+    # Con pythonw no hay consola: el aviso tiene que salir en una ventana
+    msg = "Falta scapy. Instálalo con: pip install -r requirements.txt"
+    print(f"[!] {msg}")
+    try:
+        _r = tk.Tk()
+        _r.withdraw()
+        messagebox.showerror("Escáner IoT", msg)
+    except tk.TclError:
+        pass
     sys.exit(1)
 
 import net_device_scanner as cli
@@ -36,6 +44,7 @@ MODES = {
     "pcap": "Analizar un fichero .pcap",
 }
 AUTO_IFACE = "(automática)"
+EXAMPLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "ejemplos")
 SEVERITY_COLORS = {"ALTA": "#f8d7da", "MEDIA": "#fff3cd", "BAJA": "#e2e3e5"}
 
 
@@ -50,6 +59,11 @@ def is_admin():
         return os.geteuid() == 0
     except Exception:
         return False
+
+
+def npcap_ok():
+    """En Windows Scapy necesita Npcap para capturar; en Linux/Mac no aplica."""
+    return os.name != "nt" or bool(getattr(conf, "use_pcap", False))
 
 
 def list_interfaces():
@@ -266,14 +280,18 @@ class ScannerApp(ttk.Frame):
         self.pcap.configure(state="disabled" if live else "normal")
         self.pcap_btn.configure(state="disabled" if live else "normal")
 
-        if live and not is_admin():
-            self.admin_note.configure(text="⚠ La captura en vivo necesita ejecutar como administrador "
-                                           "(Windows: Npcap instalado). El modo .pcap funciona sin permisos.")
+        if live and not npcap_ok():
+            self.admin_note.configure(text="⚠ No se detecta Npcap: instálalo desde https://npcap.com para "
+                                           "capturar en vivo. El modo .pcap funciona sin él.")
+        elif live and not is_admin():
+            self.admin_note.configure(text="⚠ La captura en vivo necesita ejecutar como administrador. "
+                                           "El modo .pcap funciona sin permisos.")
         else:
             self.admin_note.configure(text="")
 
     def _choose_pcap(self):
-        path = filedialog.askopenfilename(title="Elegir captura",
+        initial = os.path.normpath(EXAMPLES_DIR) if os.path.isdir(EXAMPLES_DIR) else None
+        path = filedialog.askopenfilename(title="Elegir captura", initialdir=initial,
                                           filetypes=[("Capturas", "*.pcap *.pcapng"), ("Todos", "*.*")])
         if path:
             self.pcap.delete(0, "end")

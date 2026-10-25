@@ -29,6 +29,7 @@ depende de IA en tiempo de ejecución.
 > "implementalo, documentalo para agent y subelo al git"
 > (tras ver casos mal clasificados y preguntar si quitar peso a los puertos típicos
 > no perdía información sobre el IoT).
+
 ### Prompt de la interfaz gráfica (2026-10-25)
 
 > "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"

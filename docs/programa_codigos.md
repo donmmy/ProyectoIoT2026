@@ -1,7 +1,7 @@
 # programa_codigos.md — Dónde se usa la teoría en el código
 
 Mapa de cada concepto teórico a la línea de código que lo aplica, hito a hito.
-Las rutas son relativas a `Proyecto4loT/Proyecto4loT/`. Las líneas corresponden a
+Las rutas son relativas a `programa/`. Las líneas corresponden a
 la rama `hitos-1-4` tras añadir NTP, TLS (SNI) y Matter/Thread; si el código cambia, revisarlas.
 
 Fichero vivo: se completa a medida que se revisa cada hito.

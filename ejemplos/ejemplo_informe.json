@@ -1,0 +1,363 @@
+{
+  "summary": {
+    "generated_at": "2026-10-25T17:23:34+00:00",
+    "mode": "pcap",
+    "pcap": "../ejemplos/ejemplo_lab.pcap",
+    "device_count": 6,
+    "identified_count": 6,
+    "top_protocols": [
+      [
+        "TCP",
+        5
+      ],
+      [
+        "UDP",
+        5
+      ],
+      [
+        "DNS",
+        2
+      ],
+      [
+        "TLS",
+        2
+      ],
+      [
+        "mDNS",
+        2
+      ],
+      [
+        "DHCP",
+        2
+      ],
+      [
+        "NTP",
+        1
+      ],
+      [
+        "ARP",
+        1
+      ],
+      [
+        "SSDP",
+        1
+      ],
+      [
+        "IPv6",
+        1
+      ]
+    ],
+    "device_types": [
+      [
+        "Cámara IP / NVR",
+        1
+      ],
+      [
+        "Chromecast / Smart TV",
+        1
+      ],
+      [
+        "Enchufe / bombilla inteligente",
+        1
+      ],
+      [
+        "Dispositivo MQTT (sensor/actuador IoT)",
+        1
+      ],
+      [
+        "Dispositivo UPnP / multimedia",
+        1
+      ],
+      [
+        "Dispositivo Matter",
+        1
+      ]
+    ],
+    "alerts": [
+      {
+        "severity": "ALTA",
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "port": 23,
+        "message": "Telnet expuesto (credenciales en claro, vector típico de Mirai)"
+      },
+      {
+        "severity": "MEDIA",
+        "device": "192.168.1.40",
+        "mac": "24:0a:c4:00:00:04",
+        "port": 1883,
+        "message": "Publica en MQTT sin TLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "port": 554,
+        "message": "RTSP expuesto (revisar autenticación del stream)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.66",
+        "mac": "00:11:22:00:00:05",
+        "port": 1900,
+        "message": "UPnP activo (puede abrir puertos en el router)"
+      }
+    ]
+  },
+  "devices": [
+    {
+      "ip": "192.168.1.10",
+      "mac": "a4:14:37:00:00:01",
+      "vendor": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 6,
+      "protocols": [
+        "ARP",
+        "DNS",
+        "NTP",
+        "TCP",
+        "TLS",
+        "UDP"
+      ],
+      "ports_dst": [
+        53,
+        123,
+        443
+      ],
+      "ports_src": [
+        23,
+        554
+      ],
+      "dns_queries": [
+        "dev.hik-connect.com"
+      ],
+      "mdns_services": [],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [
+        "api.hik-connect.com"
+      ],
+      "ntp_servers": [
+        "203.0.113.123"
+      ],
+      "labels": [
+        {
+          "label": "Cámara IP / NVR",
+          "score": 6,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 554 (+2)",
+            "fabricante 'Hikvision' (+1)",
+            "consulta dev.hik-connect.com (+3)"
+          ]
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.20",
+      "mac": "f4:f5:d8:00:00:02",
+      "vendor": "Google, Inc.",
+      "hostname": "Chromecast-Salon",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "TCP",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        5353
+      ],
+      "ports_src": [
+        8009
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_googlecast._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "labels": [
+        {
+          "label": "Chromecast / Smart TV",
+          "score": 8,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 8009 (+3)",
+            "anuncia _googlecast._tcp (+3)",
+            "texto 'Chromecast' (+2)"
+          ]
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.30",
+      "mac": "d8:1f:12:00:00:03",
+      "vendor": "Tuya Smart Inc.",
+      "hostname": "wlan0-tuya-plug",
+      "source": "pasivo",
+      "packet_count": 3,
+      "protocols": [
+        "DHCP",
+        "DNS",
+        "TCP",
+        "UDP"
+      ],
+      "ports_dst": [
+        53,
+        67
+      ],
+      "ports_src": [
+        6668
+      ],
+      "dns_queries": [
+        "a3.tuyaeu.com"
+      ],
+      "mdns_services": [],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "labels": [
+        {
+          "label": "Enchufe / bombilla inteligente",
+          "score": 8,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 6668 (+3)",
+            "texto 'tuya' (+2)",
+            "consulta a3.tuyaeu.com (+3)"
+          ]
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.40",
+      "mac": "24:0a:c4:00:00:04",
+      "vendor": "Espressif Inc.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 1,
+      "protocols": [
+        "TCP"
+      ],
+      "ports_dst": [
+        1883
+      ],
+      "ports_src": [],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "labels": [
+        {
+          "label": "Dispositivo MQTT (sensor/actuador IoT)",
+          "score": 3,
+          "confidence": "media",
+          "evidence": [
+            "conecta a puerto 1883 (+2)",
+            "fabricante 'Esp' (+1)"
+          ]
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.66",
+      "mac": "00:11:22:00:00:05",
+      "vendor": "CIMSYS Inc",
+      "hostname": "=cmd/c calcA131mrm -rf /",
+      "source": "pasivo",
+      "packet_count": 3,
+      "protocols": [
+        "DHCP",
+        "SSDP",
+        "TCP",
+        "TLS",
+        "UDP"
+      ],
+      "ports_dst": [
+        67,
+        443,
+        1900
+      ],
+      "ports_src": [
+        1900
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [
+        "SSDP:Linux/3.x UPnP/1.0 scriptx/script"
+      ],
+      "ipv6": [],
+      "tls_sni": [
+        "evilscript.example31mrm"
+      ],
+      "ntp_servers": [],
+      "labels": [
+        {
+          "label": "Dispositivo UPnP / multimedia",
+          "score": 3,
+          "confidence": "media",
+          "evidence": [
+            "sirve puerto 1900 (+1)",
+            "texto 'UPnP' (+2)"
+          ]
+        },
+        {
+          "label": "Router / gateway",
+          "score": 1,
+          "confidence": "baja",
+          "evidence": [
+            "sirve puerto 1900 (+1)"
+          ]
+        }
+      ]
+    },
+    {
+      "ip": null,
+      "mac": "d8:a0:11:00:00:06",
+      "vendor": "WiZ",
+      "hostname": "D8A011000006",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "IPv6",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        5353,
+        5540
+      ],
+      "ports_src": [
+        5540
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_matter._tcp"
+      ],
+      "banners": [],
+      "ipv6": [
+        "fe80::daa0:11ff:fe00:6"
+      ],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "labels": [
+        {
+          "label": "Dispositivo Matter",
+          "score": 6,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 5540 (+3)",
+            "anuncia _matter._tcp (+3)"
+          ]
+        }
+      ]
+    }
+  ]
+}

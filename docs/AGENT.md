@@ -35,37 +35,46 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **31 pasan** (`pytest`), con tráfico sintético; no requieren root ni red.
+Tests: **34 pasan** (`pytest`), con tráfico sintético; no requieren root ni red.
 
 ## Estructura
 
-Todo el código está en `Proyecto4loT/Proyecto4loT/` (la carpeta doble viene de
-la subida inicial a GitHub; se ha mantenido).
-
 ```
-net_device_scanner.py   CLI / punto de entrada (argparse)
-gui.py                  interfaz gráfica tkinter; build_argv() traduce la ventana a argumentos
+README.md               portada + manual de uso (GUI, CLI, tests, limitaciones)
+.venv/                  entorno virtual (en la raíz, ignorado por git)
+programa/               todo el código (ejecutar desde aquí)
+  net_device_scanner.py CLI / punto de entrada (argparse)
+  gui.py                interfaz gráfica tkinter; build_argv() traduce la ventana a argumentos
                         de la CLI y run_analysis() reutiliza parse_args/run_live/sniff_pcap
-abrir_interfaz.bat      lanzador Windows con doble clic (pide administrador vía UAC)
-iot_scanner/
-  device.py             dataclass Device (modelo común a todos los módulos)
-  discovery.py          Hito 1: guess_network, validate_network, vendor_from_mac, arp_scan
-  sniffer.py            Hito 2: PassiveSniffer, sanitize_text, tls_sni, sniff_live, sniff_pcap
-  heuristics.py         Hito 3: RULES, evaluate_rule, classify, classify_all
-  report.py             Hito 4: build_alerts, build_summary, print_*, export_json, export_csv
-tests/
-  lab_packets.py        tráfico sintético del "laboratorio" (cámara, Chromecast, enchufe Tuya,
+  abrir_interfaz.bat    lanzador Windows con doble clic: pide administrador (UAC); si no existe
+                        ..\.venv lo crea (py -3 o python) e instala requirements.txt; si falta
+                        scapy lo reinstala; abre gui.py con pythonw
+  requirements.txt
+  iot_scanner/
+    device.py           dataclass Device (modelo común a todos los módulos)
+    discovery.py        Hito 1: guess_network, validate_network, vendor_from_mac, arp_scan
+    sniffer.py          Hito 2: PassiveSniffer, sanitize_text, tls_sni, sniff_live, sniff_pcap
+    heuristics.py       Hito 3: RULES, evaluate_rule, classify, classify_all
+    report.py           Hito 4: build_alerts, build_summary, print_*, export_json, export_csv
+  tests/
+    lab_packets.py      tráfico sintético del "laboratorio" (cámara, Chromecast, enchufe Tuya,
                         sensor ESP32 MQTT, bombilla Matter por IPv6, dispositivo con hostname
                         y SNI maliciosos); client_hello() construye un TLS ClientHello; genera .pcap
-  test_scanner.py       tests por hito + test de la CLI con --pcap
-README.md, AI_USAGE.md, requirements.txt
+    test_scanner.py     tests por hito + test de la CLI con --pcap
+    test_gui.py         tests de la interfaz (se salta si no hay pantalla)
+ejemplos/               salida de demostración, solo tráfico sintético
+  ejemplo_lab.pcap, ejemplo_informe.json, ejemplo_informe.csv
+docs/                   apuntes .md
+  AGENT.md              este fichero
+  AI_USAGE.md           registro del uso de IA (lo exige el PDF)
+  programa_codigos.md   teoría -> línea de código
 ```
 
-En la raíz del repo, `programa_codigos.md` mapea cada concepto teórico a la línea
+`docs/programa_codigos.md` mapea cada concepto teórico a la línea
 de código que lo aplica (Hitos 1-3 y ampliación; Hito 4 pendiente).
 
-Las capturas `*.pcap` están en `.gitignore`; la de ejemplo se regenera con
-`python -m tests.lab_packets ejemplo_lab.pcap`. No subir informes de la red real
+Las capturas `*.pcap` están en `.gitignore` salvo las de `ejemplos/`; la de ejemplo se
+regenera desde `programa/` con `python -m tests.lab_packets` (escribe en `../ejemplos/`). No subir informes de la red real
 (llevan IPs, MACs y hostnames).
 
 Flujo: interfaz/red → ARP scan (+OUI) → [0 respuestas ⇒ solo-escucha] →
@@ -112,12 +121,12 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
 ## Cómo ejecutar
 
 ```bash
-cd Proyecto4loT/Proyecto4loT
-python -m venv .venv
-.venv/Scripts/python -m pip install -r requirements.txt   # Windows (en Linux: .venv/bin/python)
-.venv/Scripts/python -m pytest -q
-.venv/Scripts/python -m tests.lab_packets ejemplo_lab.pcap
-.venv/Scripts/python net_device_scanner.py --pcap ejemplo_lab.pcap -o informe.json --csv informe.csv
+python -m venv .venv                                       # en la raíz del repo
+.venv/Scripts/python -m pip install -r programa/requirements.txt   # Windows (Linux: .venv/bin/python)
+cd programa
+../.venv/Scripts/python -m pytest -q
+../.venv/Scripts/python -m tests.lab_packets
+../.venv/Scripts/python net_device_scanner.py --pcap ../ejemplos/ejemplo_lab.pcap -o informe.json --csv informe.csv
 ```
 
 Captura en vivo: Windows necesita **Npcap** y consola de administrador; Linux/Mac `sudo`.
@@ -126,8 +135,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 
 ## Entorno y trampas conocidas
 
-- Python 3.15 en el equipo del autor (2026-10-21: venv recreado con Python 3.14 en
-  `Proyecto4loT/Proyecto4loT/.venv`); Scapy 2.8.0 en `.venv` (ignorado por git).
+- Python 3.15 en el equipo del autor (2026-10-25: venv recreado en la raíz del repo, `.venv/`); Scapy 2.8.0 en `.venv` (ignorado por git).
 - En Scapy ≥2.5 las secciones DNS (`an`, `qd`, `ar`) son **listas**: construir
   respuestas con `an=[DNSRR(...), DNSRR(...)]`, no encadenando con `/` (si no,
   al serializar solo se cuenta el primer registro).
@@ -170,3 +178,10 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
   `abrir_interfaz.bat`. El análisis corre en un hilo y sus `print` se redirigen a la pestaña
   Registro. Tests 31 → 34 (`tests/test_gui.py`, se salta si no hay pantalla). Asistido por
   Claude (Claude Code).
+- **2026-10-25** — Reorganización del repo: `programa/` (código y tests), `ejemplos/`
+  (pcap sintético + informes JSON/CSV, ahora versionados) y `docs/` (apuntes .md). Se quita
+  la carpeta doble `Proyecto4loT/Proyecto4loT`; el venv pasa a la raíz. El manual de uso
+  queda en el `README.md` de la raíz. 34 tests OK. Asistido por Claude (Claude Code).
+- **2026-10-25** — `abrir_interfaz.bat` prepara el entorno la primera vez (el `.venv` no se
+  sube a git). La GUI avisa en ventana si falta scapy (con pythonw no hay consola) y si no hay
+  Npcap (`conf.use_pcap`). Probado en una copia limpia sin `.venv` (salvo el paso UAC).

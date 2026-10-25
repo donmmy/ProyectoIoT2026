@@ -16,3 +16,6 @@ __pycache__/
 *.pcapng
 informe*.json
 informe*.csv
+
+# Excepción: la captura sintética de ejemplo sí se sube
+!ejemplos/*.pcap

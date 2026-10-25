@@ -3,11 +3,13 @@ Tráfico sintético de un "laboratorio" IoT: cámara, Chromecast, enchufe Tuya,
 sensor MQTT, bombilla Matter (IPv6) y un dispositivo con hostname malicioso.
 Se usa en los tests y para generar una captura de ejemplo:
 
-    python tests/lab_packets.py ejemplo_lab.pcap
+    python -m tests.lab_packets            (escribe ../ejemplos/ejemplo_lab.pcap)
+    python -m tests.lab_packets otra.pcap
 """
 
 import struct
 import sys
+from pathlib import Path
 
 from scapy.all import (ARP, BOOTP, DHCP, DNS, DNSQR, DNSRR, IP, TCP, UDP, Ether, IPv6,
                        NTPHeader, Raw, wrpcap)
@@ -20,6 +22,9 @@ EVIL = "00:11:22:00:00:05"
 MATTER = "d8:a0:11:00:00:06"    # OUI WiZ (bombilla Matter sobre WiFi)
 GW = "00:00:5e:00:01:01"
 NTP_SERVER = "203.0.113.123"    # rango de documentación (RFC 5737)
+
+# Carpeta ejemplos/ en la raíz del repositorio
+DEFAULT_PCAP = Path(__file__).resolve().parents[2] / "ejemplos" / "ejemplo_lab.pcap"
 
 
 def client_hello(sni):
@@ -96,6 +101,6 @@ def lab_packets():
 
 
 if __name__ == "__main__":
-    out = sys.argv[1] if len(sys.argv) > 1 else "ejemplo_lab.pcap"
+    out = sys.argv[1] if len(sys.argv) > 1 else str(DEFAULT_PCAP)
     wrpcap(out, lab_packets())
     print(f"Captura de ejemplo escrita en {out}")
