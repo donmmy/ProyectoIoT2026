@@ -1,0 +1,7 @@
+﻿ip;mac;vendor;hostname;source;packet_count;tipo_probable;confianza;evidencias;protocols;ports_src;ports_dst;mdns_services;banners;ipv6;tls_sni;ntp_servers
+192.168.1.10;a4:14:37:00:00:01;Hangzhou Hikvision Digital Technology Co.,Ltd.;;pasivo;6;Cámara IP / NVR;alta;sirve puerto 554 (+2) | fabricante 'Hikvision' (+1) | consulta dev.hik-connect.com (+3);ARP DNS NTP TCP TLS UDP;23 554;53 123 443;;;;api.hik-connect.com;203.0.113.123
+192.168.1.20;f4:f5:d8:00:00:02;Google, Inc.;Chromecast-Salon;pasivo;2;Chromecast / Smart TV;alta;sirve puerto 8009 (+3) | anuncia _googlecast._tcp (+3) | texto 'Chromecast' (+2);TCP UDP mDNS;8009;5353;_googlecast._tcp;;;;
+192.168.1.30;d8:1f:12:00:00:03;Tuya Smart Inc.;wlan0-tuya-plug;pasivo;3;Enchufe / bombilla inteligente;alta;sirve puerto 6668 (+3) | texto 'tuya' (+2) | consulta a3.tuyaeu.com (+3);DHCP DNS TCP UDP;6668;53 67;;;;;
+192.168.1.40;24:0a:c4:00:00:04;Espressif Inc.;;pasivo;1;Dispositivo MQTT (sensor/actuador IoT);media;conecta a puerto 1883 (+2) | fabricante 'Esp' (+1);TCP;;1883;;;;;
+192.168.1.66;00:11:22:00:00:05;CIMSYS Inc;'=cmd/c calcA131mrm -rf /;pasivo;3;Dispositivo UPnP / multimedia;media;sirve puerto 1900 (+1) | texto 'UPnP' (+2);DHCP SSDP TCP TLS UDP;1900;67 443 1900;;SSDP:Linux/3.x UPnP/1.0 scriptx/script;;evilscript.example31mrm;
+;d8:a0:11:00:00:06;WiZ;D8A011000006;pasivo;2;Dispositivo Matter;alta;sirve puerto 5540 (+3) | anuncia _matter._tcp (+3);IPv6 UDP mDNS;5540;5353 5540;_matter._tcp;;fe80::daa0:11ff:fe00:6;;

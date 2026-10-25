@@ -1,0 +1,21 @@
+# Entornos virtuales de Python
+.venv/
+venv/
+env/
+ENV/
+
+# Bytecode de Python
+__pycache__/
+*.py[cod]
+*$py.class   
+# Pytest
+.pytest_cache/
+
+# Resultados de escaneo / capturas (pueden contener datos de la red)
+*.pcap
+*.pcapng
+informe*.json
+informe*.csv
+
+# Excepción: la captura sintética de ejemplo sí se sube
+!ejemplos/*.pcap
