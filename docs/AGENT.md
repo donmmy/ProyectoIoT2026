@@ -200,7 +200,9 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [x] WS-Discovery / ONVIF (2026-10-26): tipo y modelo de cámaras, impresoras y Windows.
 - [x] Mejoras de Qwen (2026-10-26): `rules.json`, logging, `--anonymize`, `--arp-interval`,
   `requirements.lock`, CI con cobertura y filtro en la GUI (ver "Mejoras propuestas por Qwen").
-- [ ] Comprobar en GitHub que la CI pasa tras el primer push con `ci.yml`.
+- [x] CI en GitHub (2026-10-26): el primer run falló en Ubuntu porque `os.path.basename` no
+  quitaba una ruta de Windows en `--anonymize` (fallo real de privacidad, invisible en Windows);
+  corregido en `5c29e70` y la CI pasa en Python 3.12 y 3.14.
 - [ ] Regenerar `ejemplos/` (el pcap y los informes de ejemplo no tienen aún NTP, SNI,
   WS-Discovery ni los campos nuevos).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
@@ -246,3 +248,6 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - **2026-10-26** — Mejoras propuestas por **Qwen** elegidas por el autor e implementadas por
   Claude (Claude Code): reglas en `rules.json`, logging, `--anonymize` (HMAC), `--arp-interval`,
   dependencias fijadas, CI con cobertura (92 %; reglas 15/15) y filtro en la GUI. Tests 42 → 55.
+- **2026-10-26** — Primer run de la CI: fallo en Linux por la ruta del pcap en `--anonymize`
+  (`os.path.basename` no separa por `\`); corregido y CI en verde. Acciones a checkout@v5 y
+  setup-python@v6 (Node 20 obsoleto).
