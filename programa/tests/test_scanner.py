@@ -448,6 +448,8 @@ def test_anonymize_hides_identifiers(devices):
     assert cam.mac.startswith("mac-") and cam.ip.startswith("ip-")
     assert "dev.hik-connect.com" in cam.dns_queries and 554 in cam.ports_src   # lo técnico se conserva
     assert anon_meta["anonymized"] and anon_meta["pcap"] == "lab.pcap"
+    for path in ("/home/alguien/lab.pcap", "lab.pcap"):   # rutas de Linux y sin carpeta
+        assert report.anonymize({}, {"pcap": path})[1]["pcap"] == "lab.pcap"
     assert devices[lab.CAM].ip == "192.168.1.10"                               # el original no cambia
 
 

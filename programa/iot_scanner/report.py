@@ -12,7 +12,7 @@ import hashlib
 import hmac
 import json
 import logging
-import os
+import re
 import secrets
 from collections import Counter
 from datetime import datetime, timezone
@@ -150,7 +150,9 @@ def anonymize(devices, meta=None, key=None):
     if meta.get("iface"):
         meta["iface"] = pseudo("iface", meta["iface"])
     if meta.get("pcap"):
-        meta["pcap"] = os.path.basename(meta["pcap"])   # la ruta lleva el usuario del equipo
+        # La ruta lleva el usuario del equipo. Se separa por \ y por / a mano: os.path solo
+        # entiende el separador del sistema y en Linux dejaría entera una ruta de Windows
+        meta["pcap"] = re.split(r"[\\/]", meta["pcap"])[-1]
     meta["anonymized"] = True
     return out, meta
 
