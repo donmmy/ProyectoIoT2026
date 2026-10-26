@@ -1,0 +1,43 @@
+# Integración continua (propuesta de Qwen): en cada push y pull request se pasan
+# los tests con cobertura, el estilo (flake8) y el análisis de seguridad (bandit).
+# Los tests usan tráfico sintético: no necesitan red, root ni Npcap. Sin pantalla,
+# el test de la ventana de la GUI se salta solo.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.14"]
+    defaults:
+      run:
+        working-directory: programa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: programa/requirements.lock
+
+      - name: Instalar dependencias (versiones fijadas)
+        run: python -m pip install -r requirements.lock
+
+      - name: Tests con cobertura (mínimo 85 % del paquete iot_scanner)
+        run: python -m pytest -q --cov=iot_scanner --cov-report=term-missing --cov-fail-under=85
+
+      - name: Estilo (flake8)
+        run: python -m flake8 --max-line-length 120 .
+
+      - name: Seguridad (bandit; B101 = assert de pytest)
+        run: python -m bandit -q -r . -s B101

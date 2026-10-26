@@ -1,0 +1,6 @@
+# Programa + herramientas de pruebas y calidad (tests, cobertura, estilo y seguridad).
+-r requirements.txt
+pytest>=8
+pytest-cov>=5
+flake8>=7
+bandit>=1.7

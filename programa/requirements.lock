@@ -1,0 +1,23 @@
+# Versiones exactas con las que se han probado programa y tests (2026-10-26, Python 3.14, Windows).
+# Fijar dependencias da reproducibilidad (propuesta de Qwen). Instalar con:
+#   pip install -r requirements.lock
+# Regenerar tras actualizar algo: pip install -r requirements-dev.txt && pip freeze > requirements.lock
+bandit==1.9.4
+colorama==0.4.6
+coverage==7.17.0
+flake8==7.4.1
+iniconfig==2.3.1
+markdown-it-py==4.2.0
+mccabe==0.7.0
+mdurl==0.1.2
+packaging==26.3
+pluggy==1.7.0
+pycodestyle==2.15.0
+pyflakes==4.0.3
+Pygments==2.21.0
+pytest==9.1.1
+pytest-cov==7.1.0
+PyYAML==6.0.3
+rich==15.0.0
+scapy==2.8.0
+stevedore==5.9.1
