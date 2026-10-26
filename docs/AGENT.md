@@ -35,31 +35,40 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **42 pasan** (`pytest`), con tráfico sintético; no requieren root ni red.
+Tests: **55 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+paquete `iot_scanner`: 92 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
 
 ```
 README.md               portada + manual de uso (GUI, CLI, tests, limitaciones)
+.github/workflows/ci.yml  CI: pytest con cobertura (>= 85 %), flake8 y bandit (Python 3.12 y 3.14)
 .venv/                  entorno virtual (en la raíz, ignorado por git)
 programa/               todo el código (ejecutar desde aquí)
   net_device_scanner.py CLI / punto de entrada (argparse)
   gui.py                interfaz gráfica tkinter; build_argv() traduce la ventana a argumentos
-                        de la CLI y run_analysis() reutiliza parse_args/run_live/sniff_pcap
+                        de la CLI y run_analysis() reutiliza parse_args/analyze (mismo flujo)
   abrir_interfaz.bat    lanzador Windows con doble clic: pide administrador (UAC); si no existe
                         ..\.venv lo crea (py -3 o python) e instala requirements.txt; si falta
                         scapy lo reinstala; abre gui.py con pythonw
-  requirements.txt
+  requirements.txt      lo que necesita el programa (scapy); lo instala el lanzador
+  requirements-dev.txt  + pytest, pytest-cov, flake8, bandit
+  requirements.lock     versiones exactas probadas (pip freeze); lo usa la CI
   iot_scanner/
     device.py           dataclass Device (modelo común a todos los módulos)
     discovery.py        Hito 1: guess_network, validate_network, vendor_from_mac, arp_scan
     sniffer.py          Hito 2: PassiveSniffer, sanitize_text, tls_sni, sniff_live, sniff_pcap
-    heuristics.py       Hito 3: RULES, evaluate_rule, classify, classify_all
-    report.py           Hito 4: build_alerts, build_summary, print_*, export_json, export_csv
+    heuristics.py       Hito 3: load_rules/use_rules (lee rules.json), evaluate_rule, classify
+    rules.json          reglas, pesos y umbrales (editable; --rules carga otro fichero)
+    logsetup.py         logging común CLI/GUI: consola [*]/[!] y --log fichero
+    report.py           Hito 4: build_alerts, build_summary, print_*, export_json, export_csv,
+                        anonymize (seudónimos HMAC para --anonymize)
   tests/
     lab_packets.py      tráfico sintético del "laboratorio" (cámara, Chromecast, enchufe Tuya,
                         sensor ESP32 MQTT, bombilla Matter por IPv6, dispositivo con hostname
-                        y SNI maliciosos); client_hello() construye un TLS ClientHello; genera .pcap
+                        y SNI maliciosos); client_hello() construye un TLS ClientHello; genera .pcap.
+                        extra_rule_packets(): un dispositivo por cada regla restante (15/15)
+    conftest.py         restaura el logger entre tests
     test_scanner.py     tests por hito + test de la CLI con --pcap
     test_gui.py         tests de la interfaz (se salta si no hay pantalla)
 ejemplos/               salida de demostración, solo tráfico sintético
@@ -71,7 +80,7 @@ docs/                   apuntes .md
 ```
 
 `docs/programa_codigos.md` mapea cada concepto teórico a la línea
-de código que lo aplica (Hitos 1-3 y ampliación; Hito 4 pendiente).
+de código que lo aplica (Hitos 1-3, ampliaciones y mejoras de Qwen; Hito 4 pendiente).
 
 Las capturas `*.pcap` están en `.gitignore` salvo las de `ejemplos/`; la de ejemplo se
 regenera desde `programa/` con `python -m tests.lab_packets` (escribe en `../ejemplos/`). No subir informes de la red real
@@ -122,24 +131,55 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
 - **Matter/Thread**: se ve lo que llega por IP (mDNS sobre IPv6, UDP 5540); los nodos
   Thread no, solo su border router (`_meshcop._udp`).
 
+### Mejoras propuestas por Qwen (2026-10-26, implementadas por Claude)
+
+El autor pasó una lista de mejoras de **Qwen** (otro asistente de IA) y eligió estas. Se
+documentan como propuestas de Qwen; los ajustes respecto a la propuesta son de Claude:
+
+- **Reglas en `rules.json`** (Qwen proponía YAML o JSON): JSON para no añadir PyYAML ni el
+  riesgo de cargar YAML. Se validan al cargar (campos desconocidos, puertos, regex) y
+  `--rules` carga otro fichero. La clasificación del laboratorio es idéntica a la anterior.
+- **logging en vez de print()**: progreso y avisos a stderr (`[*]`, `[!]`, `[.]` con `-v`) y a
+  fichero con `--log`; la tabla y el resumen siguen en stdout. La GUI usa un handler propio.
+- **`--anonymize`** (Qwen: "hash SHA-256 con sal"): HMAC-SHA256 con clave aleatoria por
+  informe, no guardada; un hash con sal de una IPv4 se revierte por fuerza bruta. Seudonimiza
+  MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del pcap; solo en JSON/CSV
+  exportados (casilla en la GUI). El `--log` y la consola mantienen los datos reales.
+- **Rate limiting ARP** (Qwen: `inter=0.05`): `--arp-interval`, 0,01 s por defecto (un /24 tarda
+  ~2,5 s más); con 0,05 s serían ~13 s. Como mucho son 254 ARPs: no era un "mini-DoS".
+- **Dependencias fijadas** (Qwen citaba scapy 2.6.1; se usa 2.8.0): `requirements.lock` con
+  `pip freeze`; `requirements.txt` solo con scapy para el lanzador y `requirements-dev.txt`
+  con las herramientas (bandit trae PyYAML, que no debe romper la instalación de la GUI).
+- **CI y cobertura**: GitHub Actions con pytest (`--cov-fail-under=85`), flake8 y bandit.
+  Cobertura de **reglas** (lo que pedía Qwen, ≥ 80 %): 15 de 15 con `extra_rule_packets()`.
+- **Filtro en la tabla de la GUI**: `detach`/`reattach` del Treeview mientras se escribe.
+- Descartadas por el autor: `mypy` (poco valor sin anotaciones y con Scapy sin tipos) y
+  resultados en tiempo real en la GUI (coste alto frente al Hito 6).
+
 ## Cómo ejecutar
 
 ```bash
 python -m venv .venv                                       # en la raíz del repo
-.venv/Scripts/python -m pip install -r programa/requirements.txt   # Windows (Linux: .venv/bin/python)
+.venv/Scripts/python -m pip install -r programa/requirements.lock  # versiones exactas (o requirements-dev.txt)
 cd programa
-../.venv/Scripts/python -m pytest -q
+../.venv/Scripts/python -m pytest -q --cov=iot_scanner --cov-report=term-missing
+../.venv/Scripts/python -m flake8 --max-line-length 120 .
+../.venv/Scripts/python -m bandit -q -r . -s B101
 ../.venv/Scripts/python -m tests.lab_packets
 ../.venv/Scripts/python net_device_scanner.py --pcap ../ejemplos/ejemplo_lab.pcap -o informe.json --csv informe.csv
 ```
 
 Captura en vivo: Windows necesita **Npcap** y consola de administrador; Linux/Mac `sudo`.
-Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pcap`,
-`-o`, `--csv`, `--list-ifaces`.
+Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `--no-sniff`,
+`--pcap`, `-o`, `--csv`, `--anonymize`, `--rules`, `--log`, `-v`, `--list-ifaces`.
 
 ## Entorno y trampas conocidas
 
-- Python 3.15 en el equipo del autor (2026-10-25: venv recreado en la raíz del repo, `.venv/`); Scapy 2.8.0 en `.venv` (ignorado por git).
+- Python 3.14 en el `.venv` de la raíz (2026-10-25; ignorado por git); Scapy 2.8.0. El
+  `python` del PATH de este equipo es el acceso directo de la Microsoft Store y no funciona.
+- `AsyncSniffer` de Scapy 2.8 no admite `timeout` (el plazo lo lleva `sniff_live`).
+- El logger `iot_scanner` no propaga (CLI/GUI lo configuran); en tests, `conftest.py` lo
+  restaura y los tests que leen mensajes usan `caplog.set_level("INFO", logger="iot_scanner")`.
 - En Scapy ≥2.5 las secciones DNS (`an`, `qd`, `ar`) son **listas**: construir
   respuestas con `an=[DNSRR(...), DNSRR(...)]`, no encadenando con `/` (si no,
   al serializar solo se cuenta el primer registro).
@@ -158,6 +198,11 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 - [x] Interfaz gráfica (`gui.py`). Escucha en vivo parable (2026-10-26): `AsyncSniffer`, botón
   "■ Detener" en la GUI y Ctrl+C en la CLI; se analiza lo capturado hasta el corte.
 - [x] WS-Discovery / ONVIF (2026-10-26): tipo y modelo de cámaras, impresoras y Windows.
+- [x] Mejoras de Qwen (2026-10-26): `rules.json`, logging, `--anonymize`, `--arp-interval`,
+  `requirements.lock`, CI con cobertura y filtro en la GUI (ver "Mejoras propuestas por Qwen").
+- [ ] Comprobar en GitHub que la CI pasa tras el primer push con `ci.yml`.
+- [ ] Regenerar `ejemplos/` (el pcap y los informes de ejemplo no tienen aún NTP, SNI,
+  WS-Discovery ni los campos nuevos).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
   dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
@@ -198,3 +243,6 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
   WS-Discovery/ONVIF (sniffer, reglas, alerta, CSV/GUI); escucha parable con `AsyncSniffer`
   (en Scapy 2.8 no admite `timeout`: el plazo lo lleva el bucle; probado con captura real).
   Tests 34 → 42. Asistido por Claude (Claude Code).
+- **2026-10-26** — Mejoras propuestas por **Qwen** elegidas por el autor e implementadas por
+  Claude (Claude Code): reglas en `rules.json`, logging, `--anonymize` (HMAC), `--arp-interval`,
+  dependencias fijadas, CI con cobertura (92 %; reglas 15/15) y filtro en la GUI. Tests 42 → 55.
