@@ -1,11 +1,26 @@
 # ProyectoIoT2026 — Escáner de dispositivos IoT
 
+[![CI](https://github.com/donmmy/ProyectoIoT2026/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/donmmy/ProyectoIoT2026/actions/workflows/ci.yml)
+
 Herramienta en Python + Scapy que descubre los dispositivos de una red local,
 escucha pasivamente su tráfico, propone qué tipo de dispositivo es cada uno y
 genera un informe con alertas de seguridad. Práctica de *Desarrollo de
 Herramientas de Ciberseguridad*.
 
 > **Uso legal:** solo en redes propias o con autorización explícita.
+
+## Estado
+
+| Hito | Contenido | Estado |
+|---|---|---|
+| 1 | Descubrimiento: ARP scan, red automática, fabricante por OUI | ✅ Hecho |
+| 2 | Escucha pasiva: DHCP, mDNS, DNS, SSDP, NTP, SNI de TLS, IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
+| 3 | Identificación por reglas con pesos (`rules.json`) | ✅ Hecho |
+| 4 | Informe: tabla, JSON/CSV (anonimizable) y alertas | ✅ Hecho |
+| 5 | Triaje asistido por IA sobre datos anonimizados | ⏳ Opcional, pendiente |
+| 6 | Pruebas en laboratorio real frente a Wireshark y memoria | ⏳ Pendiente |
+
+El detalle de decisiones, pendientes y sesiones está en [`docs/AGENT.md`](docs/AGENT.md).
 
 ## Organización
 
@@ -127,8 +142,15 @@ propuestas por **Qwen** e implementadas con Claude; el detalle está en `docs/AI
 ## Limitaciones conocidas
 
 - La identificación es heurística: es una hipótesis para el analista, no un veredicto.
-- En Wi-Fi sin modo monitor solo se ve el tráfico broadcast/multicast y el propio;
-  el tráfico unicast entre otros equipos no llega a la tarjeta.
+- El ARP scan es **activo** (envía paquetes); la escucha es **pasiva**. Con `--sniff-only`
+  la herramienta no envía nada.
+- En una red con switch o en Wi-Fi sin modo monitor solo se ve el tráfico broadcast/multicast
+  y el propio; el tráfico unicast entre otros equipos (por ejemplo, cámara ↔ nube) no llega a
+  la tarjeta. Para verlo hace falta port mirroring, un hub o usar el portátil como punto de acceso.
+- WS-Discovery: en pasivo solo se ve el `Hello` de un dispositivo cuando se conecta a la red
+  durante la escucha.
+- `--anonymize` no oculta las consultas DNS ni el SNI (son evidencia técnica, pero en un móvil
+  pueden revelar hábitos de navegación) y no afecta a la pantalla ni al `--log`.
 - Los dispositivos con MAC aleatoria no tienen fabricante OUI.
 - La autodetección limita la red como mucho a /24 para no barrer redes enormes;
   usa `-n` para otro rango.
