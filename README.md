@@ -39,10 +39,11 @@ En Windows, doble clic en **`programa/abrir_interfaz.bat`**: pide permisos de ad
 (necesarios para capturar en vivo), prepara el entorno si hace falta y abre la ventana. También: `cd programa` y `python gui.py`.
 
 En la ventana se elige el modo (ARP + escucha, solo escucha, solo ARP o analizar un
-`.pcap`), la interfaz, la red y los tiempos, y se pulsa **Iniciar análisis**. Pestañas:
+`.pcap`), la interfaz, la red y los tiempos, y se pulsa **Iniciar análisis**. Durante la
+escucha en vivo, **■ Detener** la corta y se analiza lo capturado hasta ese momento. Pestañas:
 
 - **Dispositivos**: tabla ordenable; al seleccionar uno se ven sus etiquetas candidatas
-  con las evidencias y puntos, protocolos, puertos, DNS, SNI, NTP, IPv6 y banners.
+  con las evidencias y puntos, protocolos, puertos, DNS, SNI, NTP, IPv6, WS-Discovery y banners.
 - **Alertas**: coloreadas por severidad.
 - **Resumen** y **Registro** (la salida que daría la CLI).
 - Botones **Exportar JSON / CSV**.
@@ -58,7 +59,7 @@ Los comandos se ejecutan dentro de `programa/`:
 cd programa
 python net_device_scanner.py                                # autodetecta interfaz y red
 python net_device_scanner.py -i eth0 -n 192.168.1.0/24 -t 60
-python net_device_scanner.py --sniff-only -t 120            # solo escucha (sin ARP)
+python net_device_scanner.py --sniff-only -t 120            # solo escucha (sin ARP); Ctrl+C la corta antes
 python net_device_scanner.py --no-sniff                     # solo ARP scan
 python net_device_scanner.py -o informe.json --csv informe.csv
 python net_device_scanner.py --pcap captura.pcap            # análisis offline, sin root
@@ -77,7 +78,7 @@ python -m tests.lab_packets          # la regenera en ../ejemplos/ejemplo_lab.pc
 | Hito | Módulo | Qué hace |
 |---|---|---|
 | 1 | `iot_scanner/discovery.py` | Autodetección de interfaz y CIDR, ARP scan, fabricante por OUI (detecta MAC aleatorias). Si nadie responde al ARP (aislamiento de clientes) se pasa a modo solo-escucha. |
-| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS, banners SSDP y vendor class DHCP. Todo texto de red se sanea. |
+| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS, banners SSDP y vendor class DHCP. Todo texto de red se sanea. |
 | 3 | `iot_scanner/heuristics.py` | Tabla de reglas (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...). Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
 | 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...). |
 
@@ -92,7 +93,7 @@ python -m pytest -q
 python -m flake8 --max-line-length 120 iot_scanner net_device_scanner.py gui.py tests
 ```
 
-Los tests usan tráfico sintético (`tests/lab_packets.py`): cámara Hikvision,
+Los tests usan tráfico sintético (`tests/lab_packets.py`): cámara Hikvision (con Hello ONVIF),
 Chromecast, enchufe Tuya, sensor ESP32 con MQTT, bombilla Matter por IPv6 y un
 dispositivo con hostname y SNI maliciosos para comprobar el saneado. No hace falta root ni red.
 

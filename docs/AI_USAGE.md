@@ -13,6 +13,7 @@ depende de IA en tiempo de ejecución.
 | 2026-10-21 | Claude (Claude Code) | Ampliación Hito 2 | Extractores NTP y TLS SNI, soporte IPv6, reglas Matter/Thread, tests y tráfico sintético nuevos. Revisado con el autor junto a `programa_codigos.md`. |
 | 2026-10-25 | Claude (Claude Code) | Hito 3 | Pesos por especificidad de la evidencia, umbrales sobre la suma, regex con inicio de palabra, sin doble conteo servidor/cliente; 5 tests nuevos. Propuesto por la IA tras revisar fallos con el autor; el autor decidió implementarlo. |
 | 2026-10-25 | Claude (Claude Code) | Interfaz gráfica | `gui.py` (tkinter) y `abrir_interfaz.bat`; 3 tests nuevos. Revisada con captura de pantalla sobre el pcap de ejemplo. |
+| 2026-10-26 | Claude (Claude Code) | Seguridad y ampliación | Correcciones de `bandit`; WS-Discovery/ONVIF; escucha en vivo parable (`AsyncSniffer`, botón Detener, Ctrl+C); 8 tests nuevos. Pedido por el autor ("vamos a solucionar lo demás") tras revisar los pendientes. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -41,14 +42,15 @@ depende de IA en tiempo de ejecución.
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 34 casos sobre tráfico sintético (todos pasan).
+- **Pruebas funcionales:** `pytest` con 42 casos sobre tráfico sintético (todos pasan).
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la
   red (hostname DHCP/mDNS, banners SSDP, SNI de TLS) se sanea y recorta; el parser
   del ClientHello comprueba límites y devuelve `None` si el mensaje está cortado; el CSV escapa
   celdas que empiezan por `=`, `+`, `-` o `@`.
-- **Linting:** `flake8` sin avisos. `bandit` pendiente (no se pudo instalar en Python 3.15
-  por PyYAML; ejecutar en Python 3.11–3.13).
+- **Linting:** `flake8` sin avisos. `bandit` 1.9.4 (Python 3.14) sin avisos con
+  `bandit -r programa -s B101` (B101 = `assert` de pytest). El XML de WS-Discovery no se
+  procesa con un parser XML (riesgo de XXE): regex acotadas sobre 8 KB como máximo.
 
 ## Pendiente de revisión humana
 

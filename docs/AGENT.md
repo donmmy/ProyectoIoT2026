@@ -29,13 +29,13 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | Hito | Contenido | Estado |
 |------|-----------|--------|
 | 1 | ARP scan, autodetección de interfaz/CIDR, fabricante por OUI, fallback a solo-escucha si no responde nadie | ✅ Hecho |
-| 2 | Sniffing pasivo por MAC; TCP/UDP/DNS/DHCP/mDNS/SSDP; hostname por DHCP opt.12 y mDNS. Ampliado con NTP, TLS (SNI) e IPv6 (Matter/Thread) | ✅ Hecho |
+| 2 | Sniffing pasivo por MAC; TCP/UDP/DNS/DHCP/mDNS/SSDP; hostname por DHCP opt.12 y mDNS. Ampliado con NTP, TLS (SNI), IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
 | 3 | Tabla de reglas → etiquetas candidatas con confianza (suma de pesos de las evidencias) | ✅ Hecho |
 | 4 | Tabla por consola, JSON/CSV, resumen (recuentos, protocolos top, alertas) | ✅ Hecho |
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **34 pasan** (`pytest`), con tráfico sintético; no requieren root ni red.
+Tests: **42 pasan** (`pytest`), con tráfico sintético; no requieren root ni red.
 
 ## Estructura
 
@@ -99,6 +99,10 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   media = 2 (puertos de protocolo como 554/1883, texto en hostname o banner), débil = 1
   (puertos genéricos 80/443/1900, texto que solo sale del fabricante por OUI).
   Tablas `STRONG_PORTS`, `WEAK_PORTS`, `MEDIUM_MDNS` en `heuristics.py`.
+- **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
+  scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
+  lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
+  El tipo WS-Discovery es pista fuerte (+3).
 - Confianza sobre la **suma de pesos**: 1-2 = baja, 3-4 = media, ≥5 = alta. Máx. 3 etiquetas.
   Cada evidencia lleva su peso en el informe (`sirve puerto 554 (+2)`).
 - Los pesos solo afectan a la **identificación**; las alertas de `report.py` no cambian
@@ -147,10 +151,15 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 - [x] `requirements.txt` y `README.md` con uso y ejemplo.
 - [x] `AI_USAGE.md` (lo exige el PDF). Fila del prototipo inicial completada el 2026-10-26: generado por Claude a partir del PDF, revisado por encima (fecha exacta y prompt no conservados).
 - [x] `flake8 --max-line-length 120` sin avisos.
-- [ ] `bandit`: no instala en Python 3.15 (PyYAML no compila); ejecutarlo con Python 3.11–3.13.
+- [x] `bandit` (2026-10-26, bandit 1.9.4 con Python 3.14): `bandit -r programa -s B101` sin
+  avisos. B104 eran falsos positivos por el literal "0.0.0.0" → `is_unspecified()`; B110
+  (`except: pass`) → excepciones concretas o retorno explícito.
 - [x] Commits separados por hito con etiqueta `[IA]` en la rama `hitos-1-4`; PR #1 hacia `main` abierto.
-- [x] Interfaz gráfica (`gui.py`). Limitación: la escucha en vivo no se puede cortar antes de
-  tiempo (usa el timeout de `sniff`); si se añade, usar `stop_filter`/`AsyncSniffer`.
+- [x] Interfaz gráfica (`gui.py`). Escucha en vivo parable (2026-10-26): `AsyncSniffer`, botón
+  "■ Detener" en la GUI y Ctrl+C en la CLI; se analiza lo capturado hasta el corte.
+- [x] WS-Discovery / ONVIF (2026-10-26): tipo y modelo de cámaras, impresoras y Windows.
+- [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
+  dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
 - [ ] Hito 5 (opcional): triaje con IA sobre datos anonimizados y ya saneados.
 - [ ] Futuro: capturar el **tráfico unicast** de los dispositivos. Hoy, en una red con
@@ -185,3 +194,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 - **2026-10-25** — `abrir_interfaz.bat` prepara el entorno la primera vez (el `.venv` no se
   sube a git). La GUI avisa en ventana si falta scapy (con pythonw no hay consola) y si no hay
   Npcap (`conf.use_pcap`). Probado en una copia limpia sin `.venv` (salvo el paso UAC).
+- **2026-10-26** — Pendientes sueltos: fila del prototipo en `AI_USAGE.md`; `bandit` sin avisos;
+  WS-Discovery/ONVIF (sniffer, reglas, alerta, CSV/GUI); escucha parable con `AsyncSniffer`
+  (en Scapy 2.8 no admite `timeout`: el plazo lo lleva el bucle; probado con captura real).
+  Tests 34 → 42. Asistido por Claude (Claude Code).
