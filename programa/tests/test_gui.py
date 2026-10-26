@@ -57,6 +57,17 @@ def test_window_shows_results(pcap):
         app._stop()
         assert app.stop_event.is_set()
 
+        # Filtro de la tabla (propuesta de Qwen)
+        app.filter_text.set("hikvision")
+        assert app.tree.get_children() == (lab.CAM,)
+        app.filter_text.set("")
+        assert len(app.tree.get_children()) == len(devices)
+
+        # Exportar anonimizado
+        app.anonymize.set(True)
+        anon_devices, anon_summary = app._report_data()
+        assert lab.CAM not in anon_devices and anon_summary["anonymized"]
+
         app.tree.selection_set(lab.CAM)
         app._on_select()
         detail = app.detail.get("1.0", "end")

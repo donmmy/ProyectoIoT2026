@@ -17,6 +17,7 @@ import queue
 import sys
 import threading
 import time
+import logging
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -35,7 +36,8 @@ except ImportError:
     sys.exit(1)
 
 import net_device_scanner as cli
-from iot_scanner import heuristics, report, sniffer
+from iot_scanner import report
+from iot_scanner.logsetup import ConsoleFormatter, setup_logging
 
 MODES = {
     "arp+sniff": "ARP scan + escucha pasiva",
@@ -103,27 +105,26 @@ def run_analysis(argv, stop_event=None):
 
     `stop_event` permite cortar la escucha en vivo antes de tiempo (botón Detener)."""
     args = cli.parse_args(argv)
-    if args.pcap:
-        devices = sniffer.sniff_pcap(args.pcap)
-        meta = {"mode": "pcap", "pcap": args.pcap}
-    else:
-        devices, meta = cli.run_live(args, stop_event)
-    heuristics.classify_all(devices)
+    devices, meta = cli.analyze(args, stop_event)
     return devices, report.build_summary(devices, meta)
 
 
-class _QueueWriter:
-    """Redirige los print() del análisis al registro de la ventana."""
+SUMMARY_META_KEYS = ("mode", "pcap", "iface", "network", "listen_seconds")
+
+
+class _QueueLogHandler(logging.Handler):
+    """Lleva los mensajes de logging del análisis a la pestaña Registro."""
 
     def __init__(self, q):
+        super().__init__()
         self.q = q
+        self.setFormatter(ConsoleFormatter())
 
-    def write(self, text):
-        if text:
-            self.q.put(("log", text))
-
-    def flush(self):
-        pass
+    def emit(self, record):
+        try:
+            self.q.put(("log", self.format(record) + "\n"))
+        except Exception:  # un fallo al registrar no debe tumbar el análisis
+            self.handleError(record)
 
 
 # ----------------------------------------------------------------------
@@ -141,6 +142,10 @@ class ScannerApp(ttk.Frame):
         self.stop_event = threading.Event()
         self.started_at = 0
         self.expected = 0
+        self.anonymize = tk.BooleanVar(value=False)
+        self.filter_text = tk.StringVar()
+        self._all_rows = []   # iids de la tabla, para el filtro
+        setup_logging(extra_handler=_QueueLogHandler(self.queue))
 
         master.title("Escáner de dispositivos IoT")
         master.geometry("1150x720")
@@ -217,6 +222,14 @@ class ScannerApp(ttk.Frame):
         heads = ("IP", "MAC", "Fabricante", "Hostname", "Tipo probable", "Confianza", "Paquetes", "Alertas")
         widths = (110, 130, 170, 140, 250, 80, 70, 60)
         table_frame = ttk.Frame(pane)
+        bar = ttk.Frame(table_frame)
+        bar.pack(fill="x", pady=(0, 4))
+        ttk.Label(bar, text="Filtrar:").pack(side="left")
+        self.filter_entry = ttk.Entry(bar, textvariable=self.filter_text, width=40)
+        self.filter_entry.pack(side="left", padx=4)
+        self.filter_info = ttk.Label(bar, foreground="#555")
+        self.filter_info.pack(side="left", padx=6)
+        self.filter_text.trace_add("write", lambda *_: self._apply_filter())
         self.tree = self._make_tree(table_frame, cols, heads, widths)
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         pane.add(table_frame, weight=3)
@@ -269,6 +282,8 @@ class ScannerApp(ttk.Frame):
         self.csv_btn.pack(side="right")
         self.json_btn = ttk.Button(foot, text="Exportar JSON…", command=self._export_json, state="disabled")
         self.json_btn.pack(side="right", padx=6)
+        ttk.Checkbutton(foot, text="Anonimizar al exportar (MAC, IP, hostname)",
+                        variable=self.anonymize).pack(side="right", padx=6)
 
     # ---------------- eventos ----------------
 
@@ -349,8 +364,6 @@ class ScannerApp(ttk.Frame):
         self.status.configure(text="Deteniendo la escucha…")
 
     def _work(self, argv, stop_event):
-        old = sys.stdout
-        sys.stdout = _QueueWriter(self.queue)
         try:
             self.queue.put(("done", run_analysis(argv, stop_event)))
         except PermissionError:
@@ -359,8 +372,6 @@ class ScannerApp(ttk.Frame):
             self.queue.put(("error", "Opciones no válidas (revisa tiempos y red)."))
         except Exception as e:
             self.queue.put(("error", f"{type(e).__name__}: {e}"))
-        finally:
-            sys.stdout = old
 
     def _poll_queue(self):
         try:
@@ -416,6 +427,7 @@ class ScannerApp(ttk.Frame):
             alerts_by_mac[a["mac"]] = alerts_by_mac.get(a["mac"], 0) + 1
 
         self.tree.delete(*self.tree.get_children())
+        self._all_rows = []
         for d in sorted(devices.values(), key=report._sort_key):
             best = d.labels[0] if d.labels else {}
             # Dispositivos solo IPv6 (Matter/Thread): se muestra su primera IPv6
@@ -424,6 +436,8 @@ class ScannerApp(ttk.Frame):
                 ip, d.mac, d.vendor, d.hostname or "-",
                 best.get("label", "Sin identificar"), best.get("confidence", "-"),
                 d.packet_count, alerts_by_mac.get(d.mac, 0) or ""))
+            self._all_rows.append(d.mac)
+        self._apply_filter()
 
         self.alerts.delete(*self.alerts.get_children())
         for a in summary["alerts"]:
@@ -489,28 +503,49 @@ class ScannerApp(ttk.Frame):
             tree.move(k, "", i)
         tree.heading(col, command=lambda: self._sort_tree(tree, col, not reverse))
 
+    # ---------------- filtro ----------------
+
+    def _apply_filter(self):
+        """Muestra solo las filas que contienen el texto (IP, MAC, fabricante, hostname, tipo...)."""
+        needle = self.filter_text.get().strip().lower()
+        shown = 0
+        for iid in self._all_rows:
+            values = " ".join(str(v) for v in self.tree.item(iid, "values")).lower()
+            if not needle or needle in values:
+                self.tree.reattach(iid, "", "end")
+                shown += 1
+            else:
+                self.tree.detach(iid)
+        total = len(self._all_rows)
+        self.filter_info.configure(text=f"{shown} de {total}" if needle else "")
+
     # ---------------- exportar ----------------
+
+    def _report_data(self):
+        """(devices, summary) a exportar: los reales o una copia con seudónimos."""
+        if not self.anonymize.get():
+            return self.devices, self.summary
+        meta = {k: self.summary[k] for k in SUMMARY_META_KEYS if k in self.summary}
+        devices, meta = report.anonymize(self.devices, meta)
+        return devices, report.build_summary(devices, meta)
 
     def _export_json(self):
         path = filedialog.asksaveasfilename(defaultextension=".json", initialfile="informe.json",
                                             filetypes=[("JSON", "*.json")])
         if path:
-            self._export(lambda: report.export_json(self.devices, self.summary, path), path)
+            self._export(lambda devices, summary: report.export_json(devices, summary, path), path)
 
     def _export_csv(self):
         path = filedialog.asksaveasfilename(defaultextension=".csv", initialfile="informe.csv",
                                             filetypes=[("CSV", "*.csv")])
         if path:
-            self._export(lambda: report.export_csv(self.devices, path), path)
+            self._export(lambda devices, _summary: report.export_csv(devices, path), path)
 
     def _export(self, fn, path):
         try:
-            old, sys.stdout = sys.stdout, _QueueWriter(self.queue)
-            try:
-                fn()
-            finally:
-                sys.stdout = old
-            self.status.configure(text=f"Guardado en {path}")
+            fn(*self._report_data())
+            note = " (anonimizado)" if self.anonymize.get() else ""
+            self.status.configure(text=f"Guardado en {path}{note}")
         except OSError as e:
             messagebox.showerror("No se pudo guardar", str(e))
 

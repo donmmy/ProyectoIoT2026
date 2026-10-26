@@ -8,12 +8,15 @@ Hito 1 — Descubrimiento de dispositivos.
 """
 
 import ipaddress
+import logging
 
 from scapy.all import ARP, Ether, conf, get_if_addr, srp
 
 from .device import Device
 
 BROADCAST = "ff:ff:ff:ff:ff:ff"
+
+log = logging.getLogger(__name__)
 
 
 # ----------------------------------------------------------------------
@@ -104,16 +107,28 @@ def vendor_from_mac(mac):
 # ARP scan
 # ----------------------------------------------------------------------
 
-def arp_scan(network, iface, timeout=3, retry=1):
-    """Envía ARP broadcast a toda la red y devuelve {mac: Device}."""
-    print(f"[*] Lanzando ARP scan sobre {network} (iface={iface})...")
+DEFAULT_ARP_INTERVAL = 0.01   # s entre ARPs: un /24 tarda ~2,5 s más en salir
+
+
+def arp_scan(network, iface, timeout=3, retry=1, inter=DEFAULT_ARP_INTERVAL):
+    """
+    Envía ARP broadcast a toda la red y devuelve {mac: Device}.
+
+    `inter` espacia los ARPs (rate limiting, propuesta de Qwen) para no soltar toda
+    la ráfaga de golpe: más "educado" con la red y con dispositivos IoT sencillos
+    que pueden perder respuestas si les llegan muchas peticiones seguidas.
+    0 = sin pausa (como antes).
+    """
+    hosts = ipaddress.ip_network(network, strict=False).num_addresses
+    log.info("Lanzando ARP scan sobre %s (iface=%s, %s s entre ARPs)...", network, iface, inter)
+    log.debug("Envío estimado: %.1f s + %s s de espera de respuestas", hosts * inter, timeout)
     pkt = Ether(dst=BROADCAST) / ARP(pdst=network)
-    answered, _ = srp(pkt, timeout=timeout, iface=iface, retry=retry, verbose=False)
+    answered, _ = srp(pkt, timeout=timeout, iface=iface, retry=retry, inter=inter, verbose=False)
 
     devices = {}
     for _, resp in answered:
         mac = resp[ARP].hwsrc.lower()
         devices[mac] = Device(mac=mac, ip=resp[ARP].psrc,
                               vendor=vendor_from_mac(mac), source="arp")
-    print(f"[*] {len(devices)} dispositivos respondieron al ARP scan.")
+    log.info("%d dispositivos respondieron al ARP scan.", len(devices))
     return devices

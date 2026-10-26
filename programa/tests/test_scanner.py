@@ -222,8 +222,9 @@ class _FakeAsyncSniffer:
         self._halt.set()
 
 
-def test_live_capture_stops_early_and_keeps_packets(monkeypatch, capsys):
+def test_live_capture_stops_early_and_keeps_packets(monkeypatch, caplog):
     from iot_scanner import sniffer
+    caplog.set_level("INFO", logger="iot_scanner")
     monkeypatch.setattr(sniffer, "AsyncSniffer", _FakeAsyncSniffer)
     stop = threading.Event()
     threading.Timer(0.3, stop.set).start()
@@ -231,15 +232,16 @@ def test_live_capture_stops_early_and_keeps_packets(monkeypatch, capsys):
     devs = sniffer.sniff_live("lab0", 30, stop_event=stop)
     assert time.monotonic() - t0 < 5          # no espera los 30 s
     assert lab.CAM in devs                    # lo capturado se conserva
-    assert "detenida antes de tiempo" in capsys.readouterr().out
+    assert "detenida antes de tiempo" in caplog.text
 
 
-def test_live_capture_ends_by_timeout(monkeypatch, capsys):
+def test_live_capture_ends_by_timeout(monkeypatch, caplog):
     from iot_scanner import sniffer
+    caplog.set_level("INFO", logger="iot_scanner")
     monkeypatch.setattr(sniffer, "AsyncSniffer", _FakeAsyncSniffer)
     devs = sniffer.sniff_live("lab0", 0.2)
     assert lab.CAM in devs
-    assert "detenida" not in capsys.readouterr().out
+    assert "detenida" not in caplog.text
 
 
 def test_live_capture_reraises_errors(monkeypatch):
@@ -378,3 +380,131 @@ def test_cli_pcap(tmp_path, capsys):
     data = json.loads(out_json.read_text(encoding="utf-8"))
     assert data["summary"]["mode"] == "pcap"
     assert data["summary"]["device_count"] == 6
+
+
+# ---------------- Mejoras propuestas por Qwen ----------------
+
+@pytest.fixture
+def default_rules():
+    yield
+    heuristics.use_rules()   # cada test deja las reglas por defecto
+
+
+def test_rules_load_from_json(default_rules):
+    rules = heuristics.use_rules()
+    assert len(rules) == 15 and rules[0].label == "Cámara IP / NVR"
+    assert 37777 in heuristics.STRONG_PORTS and 80 in heuristics.WEAK_PORTS
+    assert heuristics.CONFIDENCE_LEVELS[0] == (5, "alta")
+
+
+def test_custom_rules_file(tmp_path, default_rules):
+    custom = tmp_path / "reglas.json"
+    custom.write_text(json.dumps({
+        "weights": {"strong_ports": [4242]},
+        "confidence_levels": [{"min_score": 1, "label": "baja"}],
+        "rules": [{"label": "Mi sensor", "served_ports": [4242], "text": "sensorcasa"}],
+    }), encoding="utf-8")
+    heuristics.use_rules(custom)
+    best = heuristics.classify(Device(mac="aa", ports_src={4242}, hostname="sensorcasa-1"))[0]
+    assert (best["label"], best["score"]) == ("Mi sensor", 5)
+
+
+@pytest.mark.parametrize("rule, error", [
+    ({"label": "X", "servedports": [80]}, "campos desconocidos"),
+    ({"label": "X", "served_ports": [70000]}, "puertos"),
+    ({"label": "X", "text": "(sin cerrar"}, "expresión regular no válida"),
+    ({"served_ports": [80]}, "label"),
+])
+def test_invalid_rules_are_rejected(tmp_path, default_rules, rule, error):
+    bad = tmp_path / "malas.json"
+    bad.write_text(json.dumps({"confidence_levels": [{"min_score": 1, "label": "baja"}],
+                               "rules": [rule]}), encoding="utf-8")
+    with pytest.raises(ValueError, match=error):
+        heuristics.use_rules(bad)
+
+
+def test_cli_logging_to_file_keeps_stdout_clean(tmp_path, capsys):
+    from scapy.all import wrpcap
+    import net_device_scanner
+    pcap, logf = tmp_path / "lab.pcap", tmp_path / "scanner.log"
+    wrpcap(str(pcap), lab.lab_packets())
+    assert net_device_scanner.main(["--pcap", str(pcap), "--log", str(logf)]) == 0
+    captured = capsys.readouterr()
+    assert "Cámara IP" in captured.out             # la tabla sigue en stdout
+    assert "paquetes procesados" not in captured.out
+    assert "[*]" in captured.err                   # el progreso va a stderr
+    text = logf.read_text(encoding="utf-8")
+    assert "DEBUG" in text and "Dispositivo nuevo por escucha pasiva" in text
+
+
+def test_anonymize_hides_identifiers(devices):
+    meta = {"mode": "pcap", "pcap": r"C:\Users\alguien\capturas\lab.pcap", "iface": "eth0"}
+    anon, anon_meta = report.anonymize(devices, meta)
+    dump = json.dumps([d.to_dict() for d in anon.values()]) + json.dumps(anon_meta)
+    for real in (lab.CAM, "192.168.1.10", "fe80::daa0:11ff:fe00:6", "Chromecast-Salon",
+                 "HIKVISION Entrada", "alguien", "eth0"):
+        assert real not in dump
+    cam = next(d for d in anon.values() if d.labels and d.labels[0]["label"] == "Cámara IP / NVR")
+    assert cam.mac.startswith("mac-") and cam.ip.startswith("ip-")
+    assert "dev.hik-connect.com" in cam.dns_queries and 554 in cam.ports_src   # lo técnico se conserva
+    assert anon_meta["anonymized"] and anon_meta["pcap"] == "lab.pcap"
+    assert devices[lab.CAM].ip == "192.168.1.10"                               # el original no cambia
+
+
+def test_anonymize_is_consistent_but_not_reversible(devices):
+    anon, meta = report.anonymize(devices)
+    summary = report.build_summary(anon, meta)
+    macs = set(anon)
+    assert {a["mac"] for a in summary["alerts"]} <= macs      # alertas con los mismos seudónimos
+    again, _ = report.anonymize(devices)
+    assert macs.isdisjoint(again)                             # otra clave aleatoria, otros seudónimos
+    fixed = report.make_pseudonymizer(b"k" * 32)
+    assert fixed("ip", "192.168.1.10") == fixed("ip", "192.168.1.10") != fixed("ip", "192.168.1.11")
+
+
+def test_cli_anonymize_exports(tmp_path):
+    from scapy.all import wrpcap
+    import net_device_scanner
+    pcap, out_json, out_csv = tmp_path / "lab.pcap", tmp_path / "o.json", tmp_path / "o.csv"
+    wrpcap(str(pcap), lab.lab_packets())
+    assert net_device_scanner.main(["--pcap", str(pcap), "--anonymize",
+                                    "-o", str(out_json), "--csv", str(out_csv)]) == 0
+    for path in (out_json, out_csv):
+        text = path.read_text(encoding="utf-8-sig")
+        assert lab.CAM not in text and "192.168.1.10" not in text
+    assert json.loads(out_json.read_text(encoding="utf-8"))["summary"]["anonymized"] is True
+
+
+def test_arp_scan_uses_interval(monkeypatch):
+    seen = {}
+
+    def fake_srp(pkt, **kwargs):
+        seen.update(kwargs)
+        return [], []
+    monkeypatch.setattr(discovery, "srp", fake_srp)
+    discovery.arp_scan("192.168.1.0/24", "lab0", inter=0.05)
+    assert seen["inter"] == 0.05
+    discovery.arp_scan("192.168.1.0/24", "lab0")
+    assert seen["inter"] == discovery.DEFAULT_ARP_INTERVAL
+
+
+def test_arp_interval_validated():
+    import net_device_scanner
+    assert net_device_scanner.parse_args(["--arp-interval", "0"]).arp_interval == 0
+    with pytest.raises(SystemExit):
+        net_device_scanner.parse_args(["--arp-interval", "5"])
+
+
+def test_synthetic_traffic_covers_every_rule():
+    # Propuesta de Qwen: el tráfico sintético debe ejercitar al menos el 80 % de las reglas.
+    # Con el laboratorio principal y los dispositivos extra se cubren todas.
+    s = PassiveSniffer()
+    for pkt in lab.lab_packets() + lab.extra_rule_packets():
+        s.handle_packet(pkt)
+    heuristics.classify_all(s.devices)
+    for mac, expected in lab.EXTRA_EXPECTED.items():
+        assert s.devices[mac].labels[0]["label"] == expected
+    hit = {c["label"] for d in s.devices.values() for c in d.labels}
+    labels = {r.label for r in heuristics.RULES}
+    assert len(hit & labels) / len(labels) >= 0.8
+    assert hit >= labels   # hoy, el 100 %

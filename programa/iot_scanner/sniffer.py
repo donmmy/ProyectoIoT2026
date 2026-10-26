@@ -13,6 +13,7 @@ Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
+import logging
 import re
 import time
 from urllib.parse import unquote
@@ -21,6 +22,8 @@ from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IP
 
 from .device import Device
 from .discovery import is_unspecified, vendor_from_mac
+
+log = logging.getLogger(__name__)
 
 PORT_MDNS = 5353
 PORT_SSDP = 1900
@@ -221,6 +224,7 @@ class PassiveSniffer:
         if dev is None:
             dev = Device(mac=mac, ip=ip, vendor=vendor_from_mac(mac), source="pasivo")
             self.devices[mac] = dev
+            log.debug("Dispositivo nuevo por escucha pasiva: %s (%s)", mac, dev.vendor)
         return dev
 
     def handle_packet(self, pkt):
@@ -308,7 +312,7 @@ def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
     en la consola. En los dos casos se conserva y analiza lo capturado hasta ese momento.
     """
     s = PassiveSniffer(devices, ignore_macs)
-    print(f"[*] Escuchando tráfico en {iface} durante {seconds}s...")
+    log.info("Escuchando tráfico en %s durante %ss...", iface, seconds)
     # AsyncSniffer no admite timeout: el plazo lo controla este bucle
     capture = AsyncSniffer(iface=iface, prn=s.handle_packet, store=False)
     capture.start()
@@ -331,16 +335,16 @@ def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
     if capture.exception is not None:   # p. ej. sin permisos de administrador
         raise capture.exception
     if stopped:
-        print("[*] Captura detenida antes de tiempo; se analiza lo capturado hasta ahora.")
-    print(f"[*] {s.total_packets} paquetes procesados.")
+        log.info("Captura detenida antes de tiempo; se analiza lo capturado hasta ahora.")
+    log.info("%d paquetes procesados.", s.total_packets)
     return s.devices
 
 
 def sniff_pcap(path, devices=None, ignore_macs=()):
     """Procesa un fichero .pcap (útil para pruebas reproducibles y comparar con Wireshark)."""
     s = PassiveSniffer(devices, ignore_macs)
-    print(f"[*] Leyendo captura {path}...")
+    log.info("Leyendo captura %s...", path)
     for pkt in rdpcap(path):
         s.handle_packet(pkt)
-    print(f"[*] {s.total_packets} paquetes procesados.")
+    log.info("%d paquetes procesados.", s.total_packets)
     return s.devices
