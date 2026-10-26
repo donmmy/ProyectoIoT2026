@@ -1,8 +1,18 @@
+import gc
+
 import pytest
 from scapy.all import wrpcap
 
 import gui
 from tests import lab_packets as lab
+
+
+@pytest.fixture(autouse=True)
+def _free_tk_in_main_thread():
+    # tkinter solo admite liberar sus variables desde el hilo principal: se recogen aquí
+    # y no más tarde desde el hilo de otro test (p. ej. la captura en vivo simulada)
+    yield
+    gc.collect()
 
 
 @pytest.fixture
@@ -43,6 +53,9 @@ def test_window_shows_results(pcap):
         assert len(app.tree.get_children()) == len(devices)
         assert len(app.alerts.get_children()) == len(summary["alerts"])
         assert str(app.json_btn["state"]) == "normal"
+        assert str(app.stop_btn["state"]) == "disabled"   # solo activo durante la escucha
+        app._stop()
+        assert app.stop_event.is_set()
 
         app.tree.selection_set(lab.CAM)
         app._on_select()

@@ -98,14 +98,16 @@ def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=N
     return argv
 
 
-def run_analysis(argv):
-    """Ejecuta el mismo flujo que la CLI y devuelve (devices, summary)."""
+def run_analysis(argv, stop_event=None):
+    """Ejecuta el mismo flujo que la CLI y devuelve (devices, summary).
+
+    `stop_event` permite cortar la escucha en vivo antes de tiempo (botón Detener)."""
     args = cli.parse_args(argv)
     if args.pcap:
         devices = sniffer.sniff_pcap(args.pcap)
         meta = {"mode": "pcap", "pcap": args.pcap}
     else:
-        devices, meta = cli.run_live(args)
+        devices, meta = cli.run_live(args, stop_event)
     heuristics.classify_all(devices)
     return devices, report.build_summary(devices, meta)
 
@@ -136,6 +138,7 @@ class ScannerApp(ttk.Frame):
         self.devices = {}
         self.summary = None
         self.worker = None
+        self.stop_event = threading.Event()
         self.started_at = 0
         self.expected = 0
 
@@ -193,10 +196,12 @@ class ScannerApp(ttk.Frame):
 
         self.start_btn = ttk.Button(box, text="▶ Iniciar análisis", command=self._start)
         self.start_btn.grid(row=3, column=5, sticky="e", padx=4)
+        self.stop_btn = ttk.Button(box, text="■ Detener", command=self._stop, state="disabled")
+        self.stop_btn.grid(row=3, column=6, sticky="e", padx=4)
         box.columnconfigure(3, weight=1)
 
         self.admin_note = ttk.Label(box, foreground="#a15c00")
-        self.admin_note.grid(row=4, column=0, columnspan=6, sticky="w", pady=(4, 0))
+        self.admin_note.grid(row=4, column=0, columnspan=7, sticky="w", pady=(4, 0))
 
     def _build_results(self):
         self.tabs = ttk.Notebook(self)
@@ -331,14 +336,23 @@ class ScannerApp(ttk.Frame):
             self.progress.configure(mode="indeterminate")
             self.progress.start(12)
 
-        self.worker = threading.Thread(target=self._work, args=(argv,), daemon=True)
+        self.stop_event = threading.Event()
+        if mode in ("arp+sniff", "sniff-only"):
+            self.stop_btn.configure(state="normal")
+        self.worker = threading.Thread(target=self._work, args=(argv, self.stop_event), daemon=True)
         self.worker.start()
 
-    def _work(self, argv):
+    def _stop(self):
+        """Corta la escucha en vivo; se analiza lo capturado hasta ahora."""
+        self.stop_event.set()
+        self.stop_btn.configure(state="disabled")
+        self.status.configure(text="Deteniendo la escucha…")
+
+    def _work(self, argv, stop_event):
         old = sys.stdout
         sys.stdout = _QueueWriter(self.queue)
         try:
-            self.queue.put(("done", run_analysis(argv)))
+            self.queue.put(("done", run_analysis(argv, stop_event)))
         except PermissionError:
             self.queue.put(("error", "Necesitas permisos de administrador para capturar paquetes."))
         except SystemExit:
@@ -360,7 +374,7 @@ class ScannerApp(ttk.Frame):
                     self._fail(payload)
         except queue.Empty:
             pass
-        if self.worker and self.worker.is_alive() and self.expected:
+        if self.worker and self.worker.is_alive() and self.expected and not self.stop_event.is_set():
             elapsed = time.time() - self.started_at
             self.progress.configure(value=min(elapsed, self.expected))
             self.status.configure(text=f"Analizando… {int(elapsed)}/{self.expected} s")
@@ -370,6 +384,7 @@ class ScannerApp(ttk.Frame):
         self.progress.stop()
         self.progress.configure(mode="determinate", value=0)
         self.start_btn.configure(state="normal")
+        self.stop_btn.configure(state="disabled")
 
     def _fail(self, msg):
         self._stop_progress()

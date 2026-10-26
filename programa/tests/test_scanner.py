@@ -1,5 +1,7 @@
 import csv
 import json
+import threading
+import time
 
 import pytest
 
@@ -185,6 +187,69 @@ def test_wsd_hostile_payloads():
 def test_wsd_alert(devices):
     keys = {(a["mac"], a["port"]) for a in report.build_alerts(devices)}
     assert (lab.CAM, 3702) in keys
+
+
+class _FakeAsyncSniffer:
+    """Imita a scapy.AsyncSniffer (sin timeout, como el real): entrega el tráfico del
+    laboratorio y sigue capturando hasta que se llama a stop()."""
+    fail_with = None
+
+    def __init__(self, prn, **kwargs):
+        assert "timeout" not in kwargs   # el AsyncSniffer real de Scapy 2.8 lo rechaza
+        self.prn = prn
+        self.running, self.exception = False, None
+        self._halt = threading.Event()
+
+    def start(self):
+        self.running = True
+
+        def run():
+            try:
+                if self.fail_with:
+                    raise self.fail_with
+                self.continue_sniff = True
+                for pkt in lab.lab_packets():
+                    self.prn(pkt)
+                self._halt.wait()
+            except Exception as e:
+                self.exception = e
+            finally:
+                self.running = False
+        self.thread = threading.Thread(target=run, daemon=True)
+        self.thread.start()
+
+    def stop(self, join=True):
+        self._halt.set()
+
+
+def test_live_capture_stops_early_and_keeps_packets(monkeypatch, capsys):
+    from iot_scanner import sniffer
+    monkeypatch.setattr(sniffer, "AsyncSniffer", _FakeAsyncSniffer)
+    stop = threading.Event()
+    threading.Timer(0.3, stop.set).start()
+    t0 = time.monotonic()
+    devs = sniffer.sniff_live("lab0", 30, stop_event=stop)
+    assert time.monotonic() - t0 < 5          # no espera los 30 s
+    assert lab.CAM in devs                    # lo capturado se conserva
+    assert "detenida antes de tiempo" in capsys.readouterr().out
+
+
+def test_live_capture_ends_by_timeout(monkeypatch, capsys):
+    from iot_scanner import sniffer
+    monkeypatch.setattr(sniffer, "AsyncSniffer", _FakeAsyncSniffer)
+    devs = sniffer.sniff_live("lab0", 0.2)
+    assert lab.CAM in devs
+    assert "detenida" not in capsys.readouterr().out
+
+
+def test_live_capture_reraises_errors(monkeypatch):
+    from iot_scanner import sniffer
+
+    class NoPermission(_FakeAsyncSniffer):
+        fail_with = PermissionError("se necesita administrador")
+    monkeypatch.setattr(sniffer, "AsyncSniffer", NoPermission)
+    with pytest.raises(PermissionError):
+        sniffer.sniff_live("lab0", 30)
 
 
 def test_thread_border_router_rule():

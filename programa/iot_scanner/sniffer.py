@@ -14,9 +14,10 @@ guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
 import re
+import time
 from urllib.parse import unquote
 
-from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, Ether, IPv6, Raw, rdpcap, sniff
+from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IPv6, Raw, rdpcap
 
 from .device import Device
 from .discovery import is_unspecified, vendor_from_mac
@@ -290,11 +291,47 @@ class PassiveSniffer:
             _parse_wsd(pkt, dev)
 
 
-def sniff_live(iface, seconds, devices=None, ignore_macs=()):
-    """Captura en vivo durante `seconds` segundos."""
+def _stop_capture(capture):
+    """Para el AsyncSniffer si ya está capturando. Devuelve False si aún no ha arrancado:
+    Scapy ignora un stop() que llega antes de que el hilo empiece, así que hay que reintentar."""
+    if capture.running and hasattr(capture, "continue_sniff"):
+        capture.stop(join=False)
+        return True
+    return False
+
+
+def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
+    """
+    Captura en vivo durante `seconds` segundos.
+
+    Se puede cortar antes: activando `stop_event` (botón Detener de la GUI) o con Ctrl+C
+    en la consola. En los dos casos se conserva y analiza lo capturado hasta ese momento.
+    """
     s = PassiveSniffer(devices, ignore_macs)
     print(f"[*] Escuchando tráfico en {iface} durante {seconds}s...")
-    sniff(iface=iface, prn=s.handle_packet, timeout=seconds, store=False)
+    # AsyncSniffer no admite timeout: el plazo lo controla este bucle
+    capture = AsyncSniffer(iface=iface, prn=s.handle_packet, store=False)
+    capture.start()
+    deadline = time.monotonic() + seconds
+    stopped = False
+    try:
+        # Esperas cortas: así el bucle atiende el stop_event y Ctrl+C también en Windows
+        while capture.thread.is_alive() and time.monotonic() < deadline:
+            if stop_event is not None and stop_event.is_set():
+                stopped = True
+                break
+            capture.thread.join(0.2)
+    except KeyboardInterrupt:
+        stopped = True
+    # Parar la captura, reintentando si el hilo aún no había empezado a capturar
+    give_up = time.monotonic() + 5
+    while capture.thread.is_alive() and time.monotonic() < give_up:
+        _stop_capture(capture)
+        capture.thread.join(0.2)
+    if capture.exception is not None:   # p. ej. sin permisos de administrador
+        raise capture.exception
+    if stopped:
+        print("[*] Captura detenida antes de tiempo; se analiza lo capturado hasta ahora.")
     print(f"[*] {s.total_packets} paquetes procesados.")
     return s.devices
 

@@ -17,7 +17,7 @@ Requisitos:
 Uso:
     sudo python3 net_device_scanner.py                       # autodetecta interfaz/red
     sudo python3 net_device_scanner.py -i eth0 -n 192.168.1.0/24
-    sudo python3 net_device_scanner.py --sniff-only -t 120    # solo escucha, sin ARP
+    sudo python3 net_device_scanner.py --sniff-only -t 120    # solo escucha, sin ARP (Ctrl+C la corta antes)
     sudo python3 net_device_scanner.py -t 60 -o res.json --csv res.csv
     python3 net_device_scanner.py --pcap captura.pcap         # análisis offline, sin root
     python3 net_device_scanner.py --list-ifaces
@@ -25,6 +25,7 @@ Uso:
 
 import argparse
 import sys
+import time
 
 try:
     from scapy.all import conf, get_if_hwaddr, get_if_list
@@ -55,7 +56,7 @@ def parse_args(argv=None):
     return args
 
 
-def run_live(args):
+def run_live(args, stop_event=None):
     iface, network = args.iface, args.network
     if not iface or not network:
         auto_iface, auto_net = discovery.guess_network(iface)
@@ -81,11 +82,14 @@ def run_live(args):
                 args.no_sniff = False
                 args.time = args.time or 30
 
+    listened = 0
     if not args.no_sniff and args.time > 0:
-        sniffer.sniff_live(iface, args.time, devices, ignore_macs=[own_mac])
+        t0 = time.monotonic()
+        sniffer.sniff_live(iface, args.time, devices, ignore_macs=[own_mac], stop_event=stop_event)
+        listened = round(time.monotonic() - t0)  # puede ser menor si se detuvo antes
 
     return devices, {"iface": str(iface), "network": network, "mode": mode,
-                     "listen_seconds": 0 if args.no_sniff else args.time}
+                     "listen_seconds": listened}
 
 
 def main(argv=None):
