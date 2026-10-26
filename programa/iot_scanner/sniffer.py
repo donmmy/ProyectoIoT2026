@@ -16,7 +16,7 @@ import re
 from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, Ether, IPv6, Raw, rdpcap, sniff
 
 from .device import Device
-from .discovery import vendor_from_mac
+from .discovery import is_unspecified, vendor_from_mac
 
 PORT_MDNS = 5353
 PORT_SSDP = 1900
@@ -198,18 +198,18 @@ class PassiveSniffer:
         if pkt.haslayer(ARP):
             dev.protocols.add("ARP")
             psrc = pkt[ARP].psrc
-            if psrc and psrc != "0.0.0.0" and not dev.ip:
+            if psrc and not is_unspecified(psrc) and not dev.ip:
                 dev.ip = psrc
 
         ip_dst = None
         if pkt.haslayer(IP):
             ip_src, ip_dst = pkt[IP].src, pkt[IP].dst
-            if ip_src != "0.0.0.0" and (not dev.ip or dev.ip == "0.0.0.0"):
+            if not is_unspecified(ip_src) and (not dev.ip or is_unspecified(dev.ip)):
                 dev.ip = ip_src
         elif pkt.haslayer(IPv6):
             dev.protocols.add("IPv6")
             ip_dst = pkt[IPv6].dst
-            if pkt[IPv6].src != "::":
+            if not is_unspecified(pkt[IPv6].src):
                 dev.add("ipv6", pkt[IPv6].src)
 
         sport = dport = None

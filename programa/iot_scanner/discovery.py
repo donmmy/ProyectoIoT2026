@@ -20,14 +20,23 @@ BROADCAST = "ff:ff:ff:ff:ff:ff"
 # Interfaz y red
 # ----------------------------------------------------------------------
 
+def is_unspecified(ip):
+    """0.0.0.0 / :: = "sin dirección" (cliente DHCP sin IP, ruta sin gateway)."""
+    try:
+        return ipaddress.ip_address(ip).is_unspecified
+    except ValueError:
+        return False
+
+
 def _netmask_for(iface, ip):
-    """Busca la máscara de la ruta directamente conectada a la interfaz."""
+    """Busca la máscara de la ruta directamente conectada (sin gateway) a la interfaz."""
     try:
         for net, mask, gw, r_iface, r_addr, _ in conf.route.routes:
-            if str(r_iface) == str(iface) and r_addr == ip and gw == "0.0.0.0" and net != 0:
+            if str(r_iface) == str(iface) and r_addr == ip and is_unspecified(gw) and net != 0:
                 return mask
-    except Exception:
-        pass
+    except (AttributeError, TypeError, ValueError):
+        # Tabla de rutas de Scapy no disponible o con otro formato: se usará /24
+        return None
     return None
 
 
@@ -35,7 +44,7 @@ def guess_network(iface=None):
     """Deduce interfaz y red local (CIDR) a partir de la interfaz activa."""
     iface = iface or conf.iface
     ip = get_if_addr(iface)
-    if not ip or ip == "0.0.0.0":
+    if not ip or is_unspecified(ip):
         raise RuntimeError(f"No se pudo obtener IP de la interfaz {iface}")
 
     mask = _netmask_for(iface, ip)

@@ -75,8 +75,8 @@ def list_interfaces():
             if not ip or ip.startswith("127.") or ip.startswith("169.254."):
                 continue
             items.append((f"{i.name} — {i.description} ({ip})", i.name))
-    except Exception:
-        pass
+    except Exception:  # sin Npcap o sin permisos: solo queda la opción automática
+        return items
     return items
 
 

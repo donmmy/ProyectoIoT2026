@@ -22,6 +22,7 @@ EVIL = "00:11:22:00:00:05"
 MATTER = "d8:a0:11:00:00:06"    # OUI WiZ (bombilla Matter sobre WiFi)
 GW = "00:00:5e:00:01:01"
 NTP_SERVER = "203.0.113.123"    # rango de documentación (RFC 5737)
+DHCP_NO_IP = "0.0.0.0"  # nosec B104 - origen de un cliente DHCP aún sin IP, no un bind
 
 # Carpeta ejemplos/ en la raíz del repositorio
 DEFAULT_PCAP = Path(__file__).resolve().parents[2] / "ejemplos" / "ejemplo_lab.pcap"
@@ -65,7 +66,7 @@ def lab_packets():
                 TCP(sport=8009, dport=52000, flags="SA"))
 
     # Enchufe Tuya: DHCP con hostname (opción 12), consulta nube tuya, sirve 6668
-    pkts.append(Ether(src=PLUG, dst="ff:ff:ff:ff:ff:ff") / IP(src="0.0.0.0", dst="255.255.255.255") /
+    pkts.append(Ether(src=PLUG, dst="ff:ff:ff:ff:ff:ff") / IP(src=DHCP_NO_IP, dst="255.255.255.255") /
                 UDP(sport=68, dport=67) / BOOTP(chaddr=bytes.fromhex(PLUG.replace(":", ""))) /
                 DHCP(options=[("message-type", "request"), ("hostname", b"wlan0-tuya-plug"), "end"]))
     pkts.append(Ether(src=PLUG, dst=GW) / IP(src="192.168.1.30", dst="192.168.1.1") /
@@ -78,7 +79,7 @@ def lab_packets():
                 TCP(sport=50123, dport=1883, flags="S"))
 
     # Dispositivo con hostname y banner SSDP manipulados (inyección)
-    pkts.append(Ether(src=EVIL, dst="ff:ff:ff:ff:ff:ff") / IP(src="0.0.0.0", dst="255.255.255.255") /
+    pkts.append(Ether(src=EVIL, dst="ff:ff:ff:ff:ff:ff") / IP(src=DHCP_NO_IP, dst="255.255.255.255") /
                 UDP(sport=68, dport=67) / BOOTP() /
                 DHCP(options=[("hostname", b"=cmd|'/c calc'!A1\x1b[31m;rm -rf /"), "end"]))
     pkts.append(Ether(src=EVIL, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.66", dst="239.255.255.250") /
