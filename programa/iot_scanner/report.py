@@ -24,6 +24,7 @@ SENSITIVE_SERVED = {
     5683: ("BAJA",  "CoAP sin DTLS"),
     554:  ("BAJA",  "RTSP expuesto (revisar autenticación del stream)"),
     1900: ("BAJA",  "UPnP activo (puede abrir puertos en el router)"),
+    3702: ("BAJA",  "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"),
     80:   ("BAJA",  "Interfaz web sin HTTPS"),
 }
 
@@ -146,7 +147,7 @@ def export_json(devices, summary, path):
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types"]
 
 
 def _csv_safe(value):
@@ -176,6 +177,7 @@ def export_csv(devices, path):
                 "ipv6": " ".join(sorted(d.ipv6)),
                 "tls_sni": " ".join(sorted(d.tls_sni)),
                 "ntp_servers": " ".join(sorted(d.ntp_servers)),
+                "wsd_types": " ".join(sorted(d.wsd_types)),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
     print(f"[*] CSV guardado en {path}")

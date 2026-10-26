@@ -48,6 +48,7 @@ class Rule:
     mdns: set = field(default_factory=set)           # servicios mDNS anunciados
     text: str | None = None      # regex sobre hostname, banners y fabricante
     domains: str | None = None   # regex sobre consultas DNS y SNI de TLS
+    wsd: set = field(default_factory=set)            # tipos WS-Discovery anunciados
     _text_re: re.Pattern | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
@@ -62,6 +63,7 @@ RULES = [
     Rule("Cámara IP / NVR",
          served_ports={554, 8554, 37777, 34567, 8000},
          mdns={"_rtsp._tcp"},
+         wsd={"NetworkVideoTransmitter"},
          text=r"hikvision|dahua|ipcam|camera|cam\b|ezviz|reolink|axis|foscam|amcrest|wyze|xiongmai",
          domains=r"hik-connect|ezvizlife|dahua|p2p|reolink|wyzecam"),
     Rule("Chromecast / Smart TV",
@@ -103,6 +105,7 @@ RULES = [
          text=r"upnp|dlna|media ?server"),
     Rule("Impresora",
          served_ports={631, 9100, 515},
+         wsd={"PrintDeviceType", "ScanDeviceType"},
          mdns={"_ipp._tcp", "_ipps._tcp", "_printer._tcp", "_pdl-datastream._tcp"},
          text=r"printer|epson|canon|brother|hp ?inc|hewlett|laserjet|kyocera|xerox"),
     Rule("Router / gateway",
@@ -120,6 +123,7 @@ RULES = [
          domains=r"apple\.com|icloud\.com"),
     Rule("Equipo Windows",
          served_ports={135, 139, 445, 3389},
+         wsd={"Computer"},
          text=r"msft|microsoft|desktop-|laptop-|windows",
          domains=r"windowsupdate|msftconnecttest|microsoft\.com"),
     Rule("Móvil Android",
@@ -150,6 +154,9 @@ def evaluate_rule(rule, dev):
         evidence.append((f"conecta a puerto {p}", port_weight(p)))
     for s in sorted(rule.mdns & dev.mdns_services):
         evidence.append((f"anuncia {s}", mdns_weight(s)))
+    # El tipo WS-Discovery lo declara el propio dispositivo y es muy específico
+    for t in sorted(rule.wsd & dev.wsd_types):
+        evidence.append((f"WS-Discovery {t}", WEIGHT_STRONG))
 
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el

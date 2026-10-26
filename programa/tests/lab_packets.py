@@ -39,6 +39,19 @@ def client_hello(sni):
     return b"\x16\x03\x01" + struct.pack("!H", len(handshake)) + handshake
 
 
+def wsd_message(action, types="", scopes=""):
+    """Mensaje SOAP de WS-Discovery (Hello, Probe...) como lo envía una cámara ONVIF."""
+    body = f"<d:Types>{types}</d:Types>" if types else ""
+    body += f"<d:Scopes>{scopes}</d:Scopes>" if scopes else ""
+    return ('<?xml version="1.0" encoding="UTF-8"?>'
+            '<s:Envelope xmlns:s="http://www.w3.org/2003/05/soap-envelope" '
+            'xmlns:a="http://schemas.xmlsoap.org/ws/2004/08/addressing" '
+            'xmlns:d="http://schemas.xmlsoap.org/ws/2005/04/discovery" '
+            'xmlns:dn="http://www.onvif.org/ver10/network/wsdl">'
+            f"<s:Header><a:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/{action}</a:Action>"
+            f"</s:Header><s:Body><d:{action}>{body}</d:{action}></s:Body></s:Envelope>").encode()
+
+
 def lab_packets():
     pkts = []
     # Cámara: anuncia ARP, responde RTSP y Telnet, consulta su nube
@@ -50,6 +63,13 @@ def lab_packets():
                 TCP(sport=23, dport=51001, flags="SA"))
     pkts.append(Ether(src=CAM, dst=GW) / IP(src="192.168.1.10", dst="192.168.1.1") /
                 UDP(sport=50000, dport=53) / DNS(rd=1, qd=DNSQR(qname="dev.hik-connect.com")))
+    # ... se anuncia por WS-Discovery (ONVIF Hello multicast): tipo, modelo y nombre
+    pkts.append(Ether(src=CAM, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.10", dst="239.255.255.250") /
+                UDP(sport=3702, dport=3702) /
+                Raw(wsd_message("Hello", types="dn:NetworkVideoTransmitter tds:Device",
+                                scopes="onvif://www.onvif.org/type/video_encoder "
+                                       "onvif://www.onvif.org/hardware/DS-2CD2043G2-I "
+                                       "onvif://www.onvif.org/name/HIKVISION%20Entrada")))
     # ... pide la hora (NTP cliente, puerto origen 123 como ntpd) y abre TLS con su nube
     pkts.append(Ether(src=CAM, dst=GW) / IP(src="192.168.1.10", dst=NTP_SERVER) /
                 UDP(sport=123, dport=123) / NTPHeader(mode=3, version=3))

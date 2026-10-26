@@ -49,7 +49,7 @@ def test_arp_gives_ip_in_passive_mode(devices):
 
 
 def test_served_vs_client_ports(devices):
-    assert devices[lab.CAM].ports_src == {554, 23}
+    assert devices[lab.CAM].ports_src == {554, 23, 3702}  # 3702: WS-Discovery Hello
     assert 1883 in devices[lab.SENSOR].ports_dst
     assert not devices[lab.SENSOR].ports_src
 
@@ -142,6 +142,49 @@ def test_matter_over_ipv6(devices):
     assert 5540 in bulb.ports_src
     assert bulb.hostname == "D8A011000006"
     assert _labels(bulb)[0] == "Dispositivo Matter"
+
+
+def test_wsd_onvif_hello(devices):
+    cam = devices[lab.CAM]
+    assert "WS-Discovery" in cam.protocols
+    assert cam.wsd_types == {"NetworkVideoTransmitter", "Device"}
+    assert "ONVIF:hardware=DS-2CD2043G2-I" in cam.banners
+    assert "ONVIF:name=HIKVISION Entrada" in cam.banners  # %20 decodificado
+    assert "WS-Discovery NetworkVideoTransmitter (+3)" in cam.labels[0]["evidence"]
+
+
+def test_wsd_alone_identifies_camera():
+    best = heuristics.classify(Device(mac="aa", wsd_types={"NetworkVideoTransmitter"}))[0]
+    assert (best["label"], best["confidence"]) == ("Cámara IP / NVR", "media")
+
+
+def test_wsd_probe_is_client_not_service():
+    from scapy.all import IP, UDP, Ether, Raw
+    mac = "00:11:22:00:00:77"
+    probe = lab.wsd_message("Probe", types="dn:NetworkVideoTransmitter")
+    devs = _sniff(Ether(src=mac) / IP(src="192.168.1.50", dst="239.255.255.250") /
+                  UDP(sport=3702, dport=3702) / Raw(probe))
+    assert "WS-Discovery" in devs[mac].protocols
+    assert not devs[mac].wsd_types       # busca cámaras, no es una
+    assert 3702 not in devs[mac].ports_src
+
+
+def test_wsd_hostile_payloads():
+    from scapy.all import IP, UDP, Ether, Raw
+    mac = "00:11:22:00:00:78"
+    evil = lab.wsd_message("Hello", types="dn:Net<x>work;rm",
+                           scopes="onvif://www.onvif.org/name/%3Cscript%3E%1b[31m")
+    junk = b"<" * 20000 + b"Action>" + b"x" * 20000   # sin cierre: no debe colgarse
+    devs = _sniff(*(Ether(src=mac) / IP(src="192.168.1.51", dst="239.255.255.250") /
+                    UDP(sport=3702, dport=3702) / Raw(p) for p in (evil, junk, bytes([0xff, 0xfe]))))
+    dev = devs[mac]
+    assert all(c not in t for t in dev.wsd_types | dev.banners for c in "<>;" + chr(27))
+    assert any(b.startswith("ONVIF:name=") for b in dev.banners)
+
+
+def test_wsd_alert(devices):
+    keys = {(a["mac"], a["port"]) for a in report.build_alerts(devices)}
+    assert (lab.CAM, 3702) in keys
 
 
 def test_thread_border_router_rule():

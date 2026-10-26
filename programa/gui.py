@@ -456,7 +456,8 @@ class ScannerApp(ttk.Frame):
         for key, title in (("protocols", "Protocolos"), ("ports_src", "Puertos que sirve"),
                            ("ports_dst", "Puertos a los que conecta"), ("mdns_services", "Servicios mDNS"),
                            ("dns_queries", "Consultas DNS"), ("tls_sni", "TLS (SNI)"),
-                           ("ntp_servers", "Servidores NTP"), ("ipv6", "IPv6"), ("banners", "Banners")):
+                           ("ntp_servers", "Servidores NTP"), ("ipv6", "IPv6"),
+                           ("wsd_types", "WS-Discovery"), ("banners", "Banners")):
             values = d.get(key)
             if values:
                 lines.append(f"{title}: {', '.join(map(str, values))}")

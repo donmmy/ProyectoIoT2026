@@ -6,12 +6,15 @@ Hito 2 — Sniffing pasivo y extracción de metadatos.
 - Hostname anunciado por DHCP (opción 12) o mDNS.
 - Ampliación: NTP (servidores de hora consultados), TLS (SNI del ClientHello) e
   IPv6 (direcciones; Matter/Thread se anuncian por mDNS sobre IPv6).
+- WS-Discovery / ONVIF (UDP 3702, multicast): tipo de dispositivo y modelo que
+  anuncian las cámaras IP, impresoras y equipos Windows.
 
 Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
 import re
+from urllib.parse import unquote
 
 from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, Ether, IPv6, Raw, rdpcap, sniff
 
@@ -23,6 +26,7 @@ PORT_SSDP = 1900
 PORT_DHCP = (67, 68)
 PORT_NTP = 123
 PORT_MATTER = 5540
+PORT_WSD = 3702
 EPHEMERAL_START = 49152
 # Servicios UDP altos que delatan a un servidor: SSDP, CoAP/CoAPs y Matter
 UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684, PORT_MATTER}
@@ -31,6 +35,15 @@ UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684, PORT_MATTER}
 UDP_CLIENT_LOW_PORTS = {*PORT_DHCP, PORT_NTP}
 NTP_CLIENT_MODE = 3
 NTP_SERVER_MODES = (4, 5)  # respuesta de servidor y broadcast
+# WS-Discovery: mensajes que solo envía el dispositivo descubierto (el servicio)
+WSD_TARGET_ACTIONS = {"Hello", "Bye", "ProbeMatches", "ResolveMatches"}
+WSD_MAX_BYTES = 8192
+# Regex acotadas (sin .* ni anidamiento) sobre XML no confiable: no se usa un parser
+# XML para no exponerse a entidades externas o expansión de entidades
+_WSD_ACTION = re.compile(r"<(?:[\w-]+:)?Action[^>]{0,256}>([^<]{1,256})<")
+_WSD_TYPES = re.compile(r"<(?:[\w-]+:)?Types[^>]{0,256}>([^<]{1,1024})<")
+_WSD_SCOPES = re.compile(r"<(?:[\w-]+:)?Scopes[^>]{0,256}>([^<]{1,4096})<")
+ONVIF_SCOPE_KEYS = ("name", "hardware", "mfr")
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")
 
@@ -125,6 +138,32 @@ def _parse_ntp(pkt, dev, ip_dst):
         dev.add("ntp_servers", ip_dst)
     elif mode in NTP_SERVER_MODES:
         dev.add("ports_src", PORT_NTP)
+
+
+def _parse_wsd(pkt, dev):
+    """
+    WS-Discovery: SOAP/XML por UDP 3702 a 239.255.255.250 o ff02::c.
+
+    Hello/Bye/ProbeMatches los envía el dispositivo descubierto: sus Types dicen qué
+    es (dn:NetworkVideoTransmitter = cámara ONVIF) y sus Scopes, modelo y nombre.
+    Probe/Resolve los envía quien busca (un NVR, una app, Windows).
+    """
+    dev.protocols.add("WS-Discovery")
+    text = bytes(pkt[Raw].load[:WSD_MAX_BYTES]).decode("utf-8", errors="ignore")
+    m = _WSD_ACTION.search(text)
+    action = m.group(1).strip().rsplit("/", 1)[-1] if m else ""
+    if action not in WSD_TARGET_ACTIONS:
+        return
+    dev.add("ports_src", PORT_WSD)
+    m = _WSD_TYPES.search(text)
+    for qname in (m.group(1).split() if m else []):
+        dev.add("wsd_types", sanitize_text(qname.rsplit(":", 1)[-1]))
+    m = _WSD_SCOPES.search(text)
+    for scope in (m.group(1).split() if m else []):
+        parts = scope.split("onvif://www.onvif.org/", 1)
+        key, _, value = parts[-1].partition("/") if len(parts) == 2 else ("", "", "")
+        if key in ONVIF_SCOPE_KEYS and value:
+            dev.add("banners", f"ONVIF:{key}=" + (sanitize_text(unquote(value), 96) or ""))
 
 
 def _u16(data, pos):
@@ -247,6 +286,8 @@ class PassiveSniffer:
                 _parse_dns(pkt, dev)
         if PORT_SSDP in (sport, dport) and pkt.haslayer(UDP):
             _parse_ssdp(pkt, dev)
+        if PORT_WSD in (sport, dport) and pkt.haslayer(UDP) and pkt.haslayer(Raw):
+            _parse_wsd(pkt, dev)
 
 
 def sniff_live(iface, seconds, devices=None, ignore_macs=()):
