@@ -8,11 +8,16 @@ depende de IA en tiempo de ejecución.
 
 | Fecha | Asistente | Parte | Qué se generó / revisó |
 |---|---|---|---|
-| (inicial) | — | `net_device_scanner.py` v0 | Prototipo con ARP scan + sniffer básico. |
+| Antes del 2026-10-18 (fecha exacta sin registrar) | Claude | `net_device_scanner.py` v0 | Prototipo con ARP scan + sniffer básico, **generado por Claude a partir del PDF de planteamiento**. El autor solo aportó el PDF y lo revisó por encima; no hubo revisión línea a línea. Esa revisión se ha hecho después, hito a hito (ver `programa_codigos.md`). |
 | 2026-10-18 | Claude (Claude Code) | Hitos 1–4 | Refactor en el paquete `iot_scanner/` (discovery, sniffer, heuristics, report), CLI nueva, tests con tráfico sintético, README. |
 | 2026-10-21 | Claude (Claude Code) | Ampliación Hito 2 | Extractores NTP y TLS SNI, soporte IPv6, reglas Matter/Thread, tests y tráfico sintético nuevos. Revisado con el autor junto a `programa_codigos.md`. |
 | 2026-10-25 | Claude (Claude Code) | Hito 3 | Pesos por especificidad de la evidencia, umbrales sobre la suma, regex con inicio de palabra, sin doble conteo servidor/cliente; 5 tests nuevos. Propuesto por la IA tras revisar fallos con el autor; el autor decidió implementarlo. |
 | 2026-10-25 | Claude (Claude Code) | Interfaz gráfica | `gui.py` (tkinter) y `abrir_interfaz.bat`; 3 tests nuevos. Revisada con captura de pantalla sobre el pcap de ejemplo. |
+
+### Prompt del prototipo inicial (antes del 2026-10-18)
+
+> Se pasó a Claude el documento de planteamiento (PDF) para que generase un primer
+> script; el texto exacto del prompt no se conserva.
 
 ### Prompt principal (2026-10-18)
 

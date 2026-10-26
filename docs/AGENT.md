@@ -145,7 +145,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--sniff-only`, `--no-sniff`, `--pc
 ## Pendiente / siguientes pasos
 
 - [x] `requirements.txt` y `README.md` con uso y ejemplo.
-- [x] `AI_USAGE.md` (lo exige el PDF). Falta que el autor complete la fila del prototipo inicial.
+- [x] `AI_USAGE.md` (lo exige el PDF). Fila del prototipo inicial completada el 2026-10-26: generado por Claude a partir del PDF, revisado por encima (fecha exacta y prompt no conservados).
 - [x] `flake8 --max-line-length 120` sin avisos.
 - [ ] `bandit`: no instala en Python 3.15 (PyYAML no compila); ejecutarlo con Python 3.11–3.13.
 - [x] Commits separados por hito con etiqueta `[IA]` en la rama `hitos-1-4`; PR #1 hacia `main` abierto.
