@@ -8,6 +8,7 @@ Hito 1 — Descubrimiento de dispositivos.
 """
 
 import ipaddress
+import logging
 
 from scapy.all import ARP, Ether, conf, get_if_addr, srp
 
@@ -15,19 +16,30 @@ from .device import Device
 
 BROADCAST = "ff:ff:ff:ff:ff:ff"
 
+log = logging.getLogger(__name__)
+
 
 # ----------------------------------------------------------------------
 # Interfaz y red
 # ----------------------------------------------------------------------
 
+def is_unspecified(ip):
+    """0.0.0.0 / :: = "sin dirección" (cliente DHCP sin IP, ruta sin gateway)."""
+    try:
+        return ipaddress.ip_address(ip).is_unspecified
+    except ValueError:
+        return False
+
+
 def _netmask_for(iface, ip):
-    """Busca la máscara de la ruta directamente conectada a la interfaz."""
+    """Busca la máscara de la ruta directamente conectada (sin gateway) a la interfaz."""
     try:
         for net, mask, gw, r_iface, r_addr, _ in conf.route.routes:
-            if str(r_iface) == str(iface) and r_addr == ip and gw == "0.0.0.0" and net != 0:
+            if str(r_iface) == str(iface) and r_addr == ip and is_unspecified(gw) and net != 0:
                 return mask
-    except Exception:
-        pass
+    except (AttributeError, TypeError, ValueError):
+        # Tabla de rutas de Scapy no disponible o con otro formato: se usará /24
+        return None
     return None
 
 
@@ -35,7 +47,7 @@ def guess_network(iface=None):
     """Deduce interfaz y red local (CIDR) a partir de la interfaz activa."""
     iface = iface or conf.iface
     ip = get_if_addr(iface)
-    if not ip or ip == "0.0.0.0":
+    if not ip or is_unspecified(ip):
         raise RuntimeError(f"No se pudo obtener IP de la interfaz {iface}")
 
     mask = _netmask_for(iface, ip)
@@ -95,16 +107,28 @@ def vendor_from_mac(mac):
 # ARP scan
 # ----------------------------------------------------------------------
 
-def arp_scan(network, iface, timeout=3, retry=1):
-    """Envía ARP broadcast a toda la red y devuelve {mac: Device}."""
-    print(f"[*] Lanzando ARP scan sobre {network} (iface={iface})...")
+DEFAULT_ARP_INTERVAL = 0.01   # s entre ARPs: un /24 tarda ~2,5 s más en salir
+
+
+def arp_scan(network, iface, timeout=3, retry=1, inter=DEFAULT_ARP_INTERVAL):
+    """
+    Envía ARP broadcast a toda la red y devuelve {mac: Device}.
+
+    `inter` espacia los ARPs (rate limiting, propuesta de Qwen) para no soltar toda
+    la ráfaga de golpe: más "educado" con la red y con dispositivos IoT sencillos
+    que pueden perder respuestas si les llegan muchas peticiones seguidas.
+    0 = sin pausa (como antes).
+    """
+    hosts = ipaddress.ip_network(network, strict=False).num_addresses
+    log.info("Lanzando ARP scan sobre %s (iface=%s, %s s entre ARPs)...", network, iface, inter)
+    log.debug("Envío estimado: %.1f s + %s s de espera de respuestas", hosts * inter, timeout)
     pkt = Ether(dst=BROADCAST) / ARP(pdst=network)
-    answered, _ = srp(pkt, timeout=timeout, iface=iface, retry=retry, verbose=False)
+    answered, _ = srp(pkt, timeout=timeout, iface=iface, retry=retry, inter=inter, verbose=False)
 
     devices = {}
     for _, resp in answered:
         mac = resp[ARP].hwsrc.lower()
         devices[mac] = Device(mac=mac, ip=resp[ARP].psrc,
                               vendor=vendor_from_mac(mac), source="arp")
-    print(f"[*] {len(devices)} dispositivos respondieron al ARP scan.")
+    log.info("%d dispositivos respondieron al ARP scan.", len(devices))
     return devices

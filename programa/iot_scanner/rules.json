@@ -1,0 +1,113 @@
+{
+  "_comentario": "Reglas de identificación del Hito 3. Se cargan al arrancar (heuristics.load_rules). Cada regla describe un tipo de dispositivo con sus pistas; text y domains son expresiones regulares. Los pesos dicen cuánto distingue cada pista (fuerte 3, media 2, débil 1) y la confianza sale de la suma. Este fichero es configuración del analista: no cargar reglas de origen desconocido (una regex mal hecha puede ser muy lenta).",
+  "version": 1,
+  "weights": {
+    "strong_ports": [1400, 5540, 6668, 8009, 9100, 9999, 34567, 37777, 55443, 62078],
+    "weak_ports": [80, 443, 1900, 5000, 5001, 8080, 8443, 49152],
+    "medium_mdns": ["_airplay._tcp", "_dlna._tcp", "_hap._tcp", "_raop._tcp", "_smb._tcp", "_spotify-connect._tcp"]
+  },
+  "confidence_levels": [
+    {"min_score": 5, "label": "alta"},
+    {"min_score": 3, "label": "media"},
+    {"min_score": 1, "label": "baja"}
+  ],
+  "rules": [
+    {
+      "label": "Cámara IP / NVR",
+      "served_ports": [554, 8000, 8554, 34567, 37777],
+      "mdns": ["_rtsp._tcp"],
+      "wsd": ["NetworkVideoTransmitter"],
+      "text": "hikvision|dahua|ipcam|camera|cam\\b|ezviz|reolink|axis|foscam|amcrest|wyze|xiongmai",
+      "domains": "hik-connect|ezvizlife|dahua|p2p|reolink|wyzecam"
+    },
+    {
+      "label": "Chromecast / Smart TV",
+      "served_ports": [8008, 8009, 8443],
+      "mdns": ["_airplay._tcp", "_androidtvremote2._tcp", "_googlecast._tcp"],
+      "text": "chromecast|google|bravia|samsung|lg ?electronics|roku|tv\\b|android ?tv|vizio|hisense",
+      "domains": "googlecast|samsungcloud|lgtvsdp|roku\\.com|netflix"
+    },
+    {
+      "label": "Altavoz / asistente inteligente",
+      "served_ports": [1400, 4070, 55442],
+      "mdns": ["_raop._tcp", "_sonos._tcp", "_spotify-connect._tcp"],
+      "text": "sonos|echo|alexa|amazon|google ?home|nest|homepod",
+      "domains": "device-metrics-us\\.amazon|alexa|sonos|avs-alexa"
+    },
+    {
+      "label": "Dispositivo MQTT (sensor/actuador IoT)",
+      "served_ports": [1883, 8883],
+      "client_ports": [1883, 8883],
+      "mdns": ["_mqtt._tcp"],
+      "text": "esp|espressif|tasmota|shelly|sonoff|zigbee|bridge"
+    },
+    {
+      "label": "Dispositivo CoAP (IoT restringido)",
+      "served_ports": [5683, 5684],
+      "client_ports": [5683, 5684],
+      "mdns": ["_coap._udp"]
+    },
+    {
+      "label": "Enchufe / bombilla inteligente",
+      "served_ports": [80, 6667, 6668, 9999, 55443],
+      "mdns": ["_hap._tcp", "_hue._tcp", "_shelly._tcp"],
+      "text": "tuya|tp-?link|kasa|tapo|shelly|sonoff|philips|signify|yeelight|meross|smart ?plug|bulb",
+      "domains": "tuya|tplinkcloud|iot\\.meross|yeelight|meethue|shelly"
+    },
+    {
+      "label": "Dispositivo Matter",
+      "served_ports": [5540],
+      "mdns": ["_matter._tcp", "_matterc._udp"],
+      "text": "matter"
+    },
+    {
+      "label": "Border router Thread / controlador Matter",
+      "mdns": ["_matterd._udp", "_meshcop._udp", "_trel._udp"],
+      "text": "openthread|border ?router"
+    },
+    {
+      "label": "Dispositivo UPnP / multimedia",
+      "served_ports": [1900, 2869, 49152],
+      "client_ports": [1900],
+      "mdns": ["_dlna._tcp"],
+      "text": "upnp|dlna|media ?server"
+    },
+    {
+      "label": "Impresora",
+      "served_ports": [515, 631, 9100],
+      "mdns": ["_ipp._tcp", "_ipps._tcp", "_pdl-datastream._tcp", "_printer._tcp"],
+      "wsd": ["PrintDeviceType", "ScanDeviceType"],
+      "text": "printer|epson|canon|brother|hp ?inc|hewlett|laserjet|kyocera|xerox"
+    },
+    {
+      "label": "Router / gateway",
+      "served_ports": [53, 67, 1900],
+      "text": "router|gateway|fritz|mikrotik|ubiquiti|tp-?link|netgear|asus|huawei|zte|sagemcom|arris|askey|mitrastar"
+    },
+    {
+      "label": "NAS / servidor de ficheros",
+      "served_ports": [139, 445, 548, 2049, 5000, 5001],
+      "mdns": ["_afpovertcp._tcp", "_nfs._tcp", "_smb._tcp"],
+      "text": "synology|qnap|nas\\b|diskstation|truenas"
+    },
+    {
+      "label": "Dispositivo Apple",
+      "served_ports": [7000, 62078],
+      "mdns": ["_airplay._tcp", "_apple-mobdev2._tcp", "_companion-link._tcp", "_homekit._tcp"],
+      "text": "apple|iphone|ipad|macbook|imac",
+      "domains": "apple\\.com|icloud\\.com"
+    },
+    {
+      "label": "Equipo Windows",
+      "served_ports": [135, 139, 445, 3389],
+      "wsd": ["Computer"],
+      "text": "msft|microsoft|desktop-|laptop-|windows",
+      "domains": "windowsupdate|msftconnecttest|microsoft\\.com"
+    },
+    {
+      "label": "Móvil Android",
+      "text": "android|galaxy|xiaomi|redmi|oneplus|pixel|oppo|realme",
+      "domains": "connectivitycheck\\.gstatic|android\\.clients"
+    }
+  ]
+}

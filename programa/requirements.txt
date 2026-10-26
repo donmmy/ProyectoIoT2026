@@ -1,3 +1,3 @@
-scapy>=2.5
-pytest>=8
-flake8>=7
+# Lo que necesita el programa para funcionar (lo instala abrir_interfaz.bat).
+# Versiones exactas probadas: requirements.lock. Herramientas de desarrollo: requirements-dev.txt.
+scapy>=2.5,<3

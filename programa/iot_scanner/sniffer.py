@@ -6,23 +6,31 @@ Hito 2 — Sniffing pasivo y extracción de metadatos.
 - Hostname anunciado por DHCP (opción 12) o mDNS.
 - Ampliación: NTP (servidores de hora consultados), TLS (SNI del ClientHello) e
   IPv6 (direcciones; Matter/Thread se anuncian por mDNS sobre IPv6).
+- WS-Discovery / ONVIF (UDP 3702, multicast): tipo de dispositivo y modelo que
+  anuncian las cámaras IP, impresoras y equipos Windows.
 
 Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
+import logging
 import re
+import time
+from urllib.parse import unquote
 
-from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, Ether, IPv6, Raw, rdpcap, sniff
+from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IPv6, Raw, rdpcap
 
 from .device import Device
-from .discovery import vendor_from_mac
+from .discovery import is_unspecified, vendor_from_mac
+
+log = logging.getLogger(__name__)
 
 PORT_MDNS = 5353
 PORT_SSDP = 1900
 PORT_DHCP = (67, 68)
 PORT_NTP = 123
 PORT_MATTER = 5540
+PORT_WSD = 3702
 EPHEMERAL_START = 49152
 # Servicios UDP altos que delatan a un servidor: SSDP, CoAP/CoAPs y Matter
 UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684, PORT_MATTER}
@@ -31,6 +39,15 @@ UDP_SERVER_PORTS = {PORT_SSDP, 5683, 5684, PORT_MATTER}
 UDP_CLIENT_LOW_PORTS = {*PORT_DHCP, PORT_NTP}
 NTP_CLIENT_MODE = 3
 NTP_SERVER_MODES = (4, 5)  # respuesta de servidor y broadcast
+# WS-Discovery: mensajes que solo envía el dispositivo descubierto (el servicio)
+WSD_TARGET_ACTIONS = {"Hello", "Bye", "ProbeMatches", "ResolveMatches"}
+WSD_MAX_BYTES = 8192
+# Regex acotadas (sin .* ni anidamiento) sobre XML no confiable: no se usa un parser
+# XML para no exponerse a entidades externas o expansión de entidades
+_WSD_ACTION = re.compile(r"<(?:[\w-]+:)?Action[^>]{0,256}>([^<]{1,256})<")
+_WSD_TYPES = re.compile(r"<(?:[\w-]+:)?Types[^>]{0,256}>([^<]{1,1024})<")
+_WSD_SCOPES = re.compile(r"<(?:[\w-]+:)?Scopes[^>]{0,256}>([^<]{1,4096})<")
+ONVIF_SCOPE_KEYS = ("name", "hardware", "mfr")
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")
 
@@ -127,6 +144,32 @@ def _parse_ntp(pkt, dev, ip_dst):
         dev.add("ports_src", PORT_NTP)
 
 
+def _parse_wsd(pkt, dev):
+    """
+    WS-Discovery: SOAP/XML por UDP 3702 a 239.255.255.250 o ff02::c.
+
+    Hello/Bye/ProbeMatches los envía el dispositivo descubierto: sus Types dicen qué
+    es (dn:NetworkVideoTransmitter = cámara ONVIF) y sus Scopes, modelo y nombre.
+    Probe/Resolve los envía quien busca (un NVR, una app, Windows).
+    """
+    dev.protocols.add("WS-Discovery")
+    text = bytes(pkt[Raw].load[:WSD_MAX_BYTES]).decode("utf-8", errors="ignore")
+    m = _WSD_ACTION.search(text)
+    action = m.group(1).strip().rsplit("/", 1)[-1] if m else ""
+    if action not in WSD_TARGET_ACTIONS:
+        return
+    dev.add("ports_src", PORT_WSD)
+    m = _WSD_TYPES.search(text)
+    for qname in (m.group(1).split() if m else []):
+        dev.add("wsd_types", sanitize_text(qname.rsplit(":", 1)[-1]))
+    m = _WSD_SCOPES.search(text)
+    for scope in (m.group(1).split() if m else []):
+        parts = scope.split("onvif://www.onvif.org/", 1)
+        key, _, value = parts[-1].partition("/") if len(parts) == 2 else ("", "", "")
+        if key in ONVIF_SCOPE_KEYS and value:
+            dev.add("banners", f"ONVIF:{key}=" + (sanitize_text(unquote(value), 96) or ""))
+
+
 def _u16(data, pos):
     return int.from_bytes(data[pos:pos + 2], "big")
 
@@ -181,6 +224,7 @@ class PassiveSniffer:
         if dev is None:
             dev = Device(mac=mac, ip=ip, vendor=vendor_from_mac(mac), source="pasivo")
             self.devices[mac] = dev
+            log.debug("Dispositivo nuevo por escucha pasiva: %s (%s)", mac, dev.vendor)
         return dev
 
     def handle_packet(self, pkt):
@@ -198,18 +242,18 @@ class PassiveSniffer:
         if pkt.haslayer(ARP):
             dev.protocols.add("ARP")
             psrc = pkt[ARP].psrc
-            if psrc and psrc != "0.0.0.0" and not dev.ip:
+            if psrc and not is_unspecified(psrc) and not dev.ip:
                 dev.ip = psrc
 
         ip_dst = None
         if pkt.haslayer(IP):
             ip_src, ip_dst = pkt[IP].src, pkt[IP].dst
-            if ip_src != "0.0.0.0" and (not dev.ip or dev.ip == "0.0.0.0"):
+            if not is_unspecified(ip_src) and (not dev.ip or is_unspecified(dev.ip)):
                 dev.ip = ip_src
         elif pkt.haslayer(IPv6):
             dev.protocols.add("IPv6")
             ip_dst = pkt[IPv6].dst
-            if pkt[IPv6].src != "::":
+            if not is_unspecified(pkt[IPv6].src):
                 dev.add("ipv6", pkt[IPv6].src)
 
         sport = dport = None
@@ -247,22 +291,60 @@ class PassiveSniffer:
                 _parse_dns(pkt, dev)
         if PORT_SSDP in (sport, dport) and pkt.haslayer(UDP):
             _parse_ssdp(pkt, dev)
+        if PORT_WSD in (sport, dport) and pkt.haslayer(UDP) and pkt.haslayer(Raw):
+            _parse_wsd(pkt, dev)
 
 
-def sniff_live(iface, seconds, devices=None, ignore_macs=()):
-    """Captura en vivo durante `seconds` segundos."""
+def _stop_capture(capture):
+    """Para el AsyncSniffer si ya está capturando. Devuelve False si aún no ha arrancado:
+    Scapy ignora un stop() que llega antes de que el hilo empiece, así que hay que reintentar."""
+    if capture.running and hasattr(capture, "continue_sniff"):
+        capture.stop(join=False)
+        return True
+    return False
+
+
+def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
+    """
+    Captura en vivo durante `seconds` segundos.
+
+    Se puede cortar antes: activando `stop_event` (botón Detener de la GUI) o con Ctrl+C
+    en la consola. En los dos casos se conserva y analiza lo capturado hasta ese momento.
+    """
     s = PassiveSniffer(devices, ignore_macs)
-    print(f"[*] Escuchando tráfico en {iface} durante {seconds}s...")
-    sniff(iface=iface, prn=s.handle_packet, timeout=seconds, store=False)
-    print(f"[*] {s.total_packets} paquetes procesados.")
+    log.info("Escuchando tráfico en %s durante %ss...", iface, seconds)
+    # AsyncSniffer no admite timeout: el plazo lo controla este bucle
+    capture = AsyncSniffer(iface=iface, prn=s.handle_packet, store=False)
+    capture.start()
+    deadline = time.monotonic() + seconds
+    stopped = False
+    try:
+        # Esperas cortas: así el bucle atiende el stop_event y Ctrl+C también en Windows
+        while capture.thread.is_alive() and time.monotonic() < deadline:
+            if stop_event is not None and stop_event.is_set():
+                stopped = True
+                break
+            capture.thread.join(0.2)
+    except KeyboardInterrupt:
+        stopped = True
+    # Parar la captura, reintentando si el hilo aún no había empezado a capturar
+    give_up = time.monotonic() + 5
+    while capture.thread.is_alive() and time.monotonic() < give_up:
+        _stop_capture(capture)
+        capture.thread.join(0.2)
+    if capture.exception is not None:   # p. ej. sin permisos de administrador
+        raise capture.exception
+    if stopped:
+        log.info("Captura detenida antes de tiempo; se analiza lo capturado hasta ahora.")
+    log.info("%d paquetes procesados.", s.total_packets)
     return s.devices
 
 
 def sniff_pcap(path, devices=None, ignore_macs=()):
     """Procesa un fichero .pcap (útil para pruebas reproducibles y comparar con Wireshark)."""
     s = PassiveSniffer(devices, ignore_macs)
-    print(f"[*] Leyendo captura {path}...")
+    log.info("Leyendo captura %s...", path)
     for pkt in rdpcap(path):
         s.handle_packet(pkt)
-    print(f"[*] {s.total_packets} paquetes procesados.")
+    log.info("%d paquetes procesados.", s.total_packets)
     return s.devices

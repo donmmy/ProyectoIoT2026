@@ -7,9 +7,17 @@ Hito 4 — Exportación e informe.
 """
 
 import csv
+import dataclasses
+import hashlib
+import hmac
 import json
+import logging
+import re
+import secrets
 from collections import Counter
 from datetime import datetime, timezone
+
+log = logging.getLogger(__name__)
 
 # Puertos servidos por un dispositivo que merecen revisión: puerto -> (severidad, motivo)
 SENSITIVE_SERVED = {
@@ -24,6 +32,7 @@ SENSITIVE_SERVED = {
     5683: ("BAJA",  "CoAP sin DTLS"),
     554:  ("BAJA",  "RTSP expuesto (revisar autenticación del stream)"),
     1900: ("BAJA",  "UPnP activo (puede abrir puertos en el router)"),
+    3702: ("BAJA",  "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"),
     80:   ("BAJA",  "Interfaz web sin HTTPS"),
 }
 
@@ -89,6 +98,66 @@ def build_summary(devices, meta=None):
 
 
 # ----------------------------------------------------------------------
+# Anonimización de informes (propuesta de Qwen: "Privacy by Design")
+# ----------------------------------------------------------------------
+#
+# Se sustituyen por seudónimos los datos que identifican un equipo o a su dueño:
+# MAC, IP, IPv6, hostname, nombre ONVIF, interfaz de captura y ruta del .pcap.
+# Se conservan los datos técnicos que hacen falta para analizar (fabricante,
+# puertos, protocolos, servicios, dominios, tipo y alertas).
+#
+# No basta con un hash, ni con sal: solo hay 2^32 IPv4 y unos pocos millones de
+# MACs por fabricante, así que un SHA-256 se revierte probándolas todas. Se usa
+# HMAC-SHA256 con una clave aleatoria por informe que no se guarda en ninguna
+# parte: el mismo dispositivo recibe el mismo seudónimo en todo el informe (JSON,
+# CSV y alertas), pero nadie, ni el propio autor, puede deshacerlo.
+
+PSEUDONYM_HEX = 12   # 48 bits: sin colisiones prácticas en una red local
+
+
+def make_pseudonymizer(key=None):
+    """Devuelve pseudo(tipo, valor) -> "tipo-1a2b3c4d5e6f" (None se queda en None)."""
+    key = key or secrets.token_bytes(32)
+
+    def pseudo(kind, value):
+        if not value:
+            return value
+        digest = hmac.new(key, f"{kind}:{value}".encode(), hashlib.sha256).hexdigest()
+        return f"{kind}-{digest[:PSEUDONYM_HEX]}"
+    return pseudo
+
+
+def _anonymize_banner(banner, pseudo):
+    # El nombre ONVIF lo pone el usuario ("HIKVISION Entrada") y puede delatar dónde está
+    if banner.startswith("ONVIF:name="):
+        return "ONVIF:name=" + pseudo("name", banner[len("ONVIF:name="):])
+    return banner
+
+
+def anonymize(devices, meta=None, key=None):
+    """Copia anonimizada de (devices, meta); los originales no se modifican."""
+    pseudo = make_pseudonymizer(key)
+    out = {}
+    for d in devices.values():
+        new = dataclasses.replace(
+            d,
+            mac=pseudo("mac", d.mac), ip=pseudo("ip", d.ip), hostname=pseudo("host", d.hostname),
+            ipv6={pseudo("ip6", a) for a in d.ipv6},
+            banners={_anonymize_banner(b, pseudo) for b in d.banners},
+            labels=[dict(c) for c in d.labels])
+        out[new.mac] = new
+    meta = dict(meta or {})
+    if meta.get("iface"):
+        meta["iface"] = pseudo("iface", meta["iface"])
+    if meta.get("pcap"):
+        # La ruta lleva el usuario del equipo. Se separa por \ y por / a mano: os.path solo
+        # entiende el separador del sistema y en Linux dejaría entera una ruta de Windows
+        meta["pcap"] = re.split(r"[\\/]", meta["pcap"])[-1]
+    meta["anonymized"] = True
+    return out, meta
+
+
+# ----------------------------------------------------------------------
 # Consola
 # ----------------------------------------------------------------------
 
@@ -140,13 +209,13 @@ def export_json(devices, summary, path):
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
-    print(f"[*] JSON guardado en {path}")
+    log.info("JSON guardado en %s", path)
 
 
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types"]
 
 
 def _csv_safe(value):
@@ -176,6 +245,7 @@ def export_csv(devices, path):
                 "ipv6": " ".join(sorted(d.ipv6)),
                 "tls_sni": " ".join(sorted(d.tls_sni)),
                 "ntp_servers": " ".join(sorted(d.ntp_servers)),
+                "wsd_types": " ".join(sorted(d.wsd_types)),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
-    print(f"[*] CSV guardado en {path}")
+    log.info("CSV guardado en %s", path)

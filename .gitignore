@@ -19,3 +19,10 @@ informe*.csv
 
 # Excepción: la captura sintética de ejemplo sí se sube
 !ejemplos/*.pcap
+
+# Cobertura de tests
+.coverage
+htmlcov/
+
+# Registros de --log (llevan MAC, IP y hostnames reales)
+*.log

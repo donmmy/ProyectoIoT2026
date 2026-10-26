@@ -1,7 +1,7 @@
 """
 Hito 3 — Motor de heurísticas de identificación.
 
-- Tabla de reglas puerto/protocolo -> servicio / tipo de dispositivo.
+- Tabla de reglas puerto/protocolo -> servicio / tipo de dispositivo, en rules.json.
 - Cada dispositivo recibe una o varias etiquetas candidatas con un nivel de
   confianza basado en la suma de los pesos de las evidencias que coinciden.
 
@@ -14,18 +14,26 @@ las alertas de seguridad (report.py) siguen tratando el 80 o el 1900 igual.
 Es una primera hipótesis para el analista, no un veredicto.
 """
 
+import json
+import logging
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 WEIGHT_STRONG, WEIGHT_MEDIUM, WEIGHT_WEAK = 3, 2, 1
 
-# Puertos propietarios o casi exclusivos de un tipo / fabricante
-STRONG_PORTS = {37777, 34567, 8009, 6668, 9999, 55443, 5540, 62078, 1400, 9100}
-# Puertos que sirve casi cualquier cosa: dicen poco del tipo (sí del riesgo)
-WEAK_PORTS = {80, 443, 1900, 5000, 5001, 8080, 8443, 49152}
-# Servicios mDNS que anuncian muchos tipos distintos; el resto se consideran específicos
-MEDIUM_MDNS = {"_airplay._tcp", "_raop._tcp", "_hap._tcp", "_dlna._tcp", "_smb._tcp",
-               "_spotify-connect._tcp"}
+# Las reglas, los pesos y los umbrales viven en rules.json (propuesta de Qwen): se
+# pueden ampliar o ajustar sin tocar el código, o cargar otro fichero con --rules.
+DEFAULT_RULES_PATH = Path(__file__).with_name("rules.json")
+
+log = logging.getLogger(__name__)
+
+# Se rellenan al cargar el fichero de reglas (ver use_rules al final del bloque)
+STRONG_PORTS: set = set()   # puertos propietarios o casi exclusivos de un tipo / fabricante
+WEAK_PORTS: set = set()     # puertos que sirve casi cualquier cosa: dicen poco del tipo
+MEDIUM_MDNS: set = set()    # servicios mDNS que anuncian muchos tipos distintos
+CONFIDENCE_LEVELS: tuple = ()
+RULES: list = []
 
 
 def port_weight(port):
@@ -48,6 +56,7 @@ class Rule:
     mdns: set = field(default_factory=set)           # servicios mDNS anunciados
     text: str | None = None      # regex sobre hostname, banners y fabricante
     domains: str | None = None   # regex sobre consultas DNS y SNI de TLS
+    wsd: set = field(default_factory=set)            # tipos WS-Discovery anunciados
     _text_re: re.Pattern | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
@@ -58,78 +67,94 @@ class Rule:
             self._text_re = re.compile(rf"(?<![a-z])(?:{self.text})", re.IGNORECASE)
 
 
-RULES = [
-    Rule("Cámara IP / NVR",
-         served_ports={554, 8554, 37777, 34567, 8000},
-         mdns={"_rtsp._tcp"},
-         text=r"hikvision|dahua|ipcam|camera|cam\b|ezviz|reolink|axis|foscam|amcrest|wyze|xiongmai",
-         domains=r"hik-connect|ezvizlife|dahua|p2p|reolink|wyzecam"),
-    Rule("Chromecast / Smart TV",
-         served_ports={8008, 8009, 8443},
-         mdns={"_googlecast._tcp", "_androidtvremote2._tcp", "_airplay._tcp"},
-         text=r"chromecast|google|bravia|samsung|lg ?electronics|roku|tv\b|android ?tv|vizio|hisense",
-         domains=r"googlecast|samsungcloud|lgtvsdp|roku\.com|netflix"),
-    Rule("Altavoz / asistente inteligente",
-         served_ports={1400, 4070, 55442},
-         mdns={"_spotify-connect._tcp", "_sonos._tcp", "_raop._tcp"},
-         text=r"sonos|echo|alexa|amazon|google ?home|nest|homepod",
-         domains=r"device-metrics-us\.amazon|alexa|sonos|avs-alexa"),
-    Rule("Dispositivo MQTT (sensor/actuador IoT)",
-         served_ports={1883, 8883},
-         client_ports={1883, 8883},
-         mdns={"_mqtt._tcp"},
-         text=r"esp|espressif|tasmota|shelly|sonoff|zigbee|bridge"),
-    Rule("Dispositivo CoAP (IoT restringido)",
-         served_ports={5683, 5684},
-         client_ports={5683, 5684},
-         mdns={"_coap._udp"}),
-    Rule("Enchufe / bombilla inteligente",
-         served_ports={9999, 6668, 6667, 55443, 80},
-         mdns={"_hap._tcp", "_shelly._tcp", "_hue._tcp"},
-         text=(r"tuya|tp-?link|kasa|tapo|shelly|sonoff|philips|signify|yeelight|meross"
-               r"|smart ?plug|bulb"),
-         domains=r"tuya|tplinkcloud|iot\.meross|yeelight|meethue|shelly"),
-    Rule("Dispositivo Matter",
-         served_ports={5540},
-         mdns={"_matter._tcp", "_matterc._udp"},
-         text=r"matter"),
-    Rule("Border router Thread / controlador Matter",
-         mdns={"_meshcop._udp", "_trel._udp", "_matterd._udp"},
-         text=r"openthread|border ?router"),
-    Rule("Dispositivo UPnP / multimedia",
-         served_ports={1900, 49152, 2869},
-         client_ports={1900},
-         mdns={"_dlna._tcp"},
-         text=r"upnp|dlna|media ?server"),
-    Rule("Impresora",
-         served_ports={631, 9100, 515},
-         mdns={"_ipp._tcp", "_ipps._tcp", "_printer._tcp", "_pdl-datastream._tcp"},
-         text=r"printer|epson|canon|brother|hp ?inc|hewlett|laserjet|kyocera|xerox"),
-    Rule("Router / gateway",
-         served_ports={53, 67, 1900},
-         text=(r"router|gateway|fritz|mikrotik|ubiquiti|tp-?link|netgear|asus|huawei|zte"
-               r"|sagemcom|arris|askey|mitrastar")),
-    Rule("NAS / servidor de ficheros",
-         served_ports={445, 139, 2049, 5000, 5001, 548},
-         mdns={"_smb._tcp", "_afpovertcp._tcp", "_nfs._tcp"},
-         text=r"synology|qnap|nas\b|diskstation|truenas"),
-    Rule("Dispositivo Apple",
-         served_ports={62078, 7000},
-         mdns={"_companion-link._tcp", "_apple-mobdev2._tcp", "_airplay._tcp", "_homekit._tcp"},
-         text=r"apple|iphone|ipad|macbook|imac",
-         domains=r"apple\.com|icloud\.com"),
-    Rule("Equipo Windows",
-         served_ports={135, 139, 445, 3389},
-         text=r"msft|microsoft|desktop-|laptop-|windows",
-         domains=r"windowsupdate|msftconnecttest|microsoft\.com"),
-    Rule("Móvil Android",
-         text=r"android|galaxy|xiaomi|redmi|oneplus|pixel|oppo|realme",
-         domains=r"connectivitycheck\.gstatic|android\.clients"),
-]
+# ----------------------------------------------------------------------
+# Carga y validación de rules.json
+# ----------------------------------------------------------------------
 
-# Umbrales sobre la suma de pesos: una pista fuerte sola ya da "media";
-# hacen falta al menos dos pistas (o una fuerte y otra) para "alta".
-CONFIDENCE_LEVELS = ((5, "alta"), (3, "media"), (1, "baja"))
+_PORT_FIELDS = ("served_ports", "client_ports")
+_NAME_FIELDS = ("mdns", "wsd")
+_REGEX_FIELDS = ("text", "domains")
+_RULE_FIELDS = {"label", *_PORT_FIELDS, *_NAME_FIELDS, *_REGEX_FIELDS}
+
+
+def _ports(value, where):
+    if not isinstance(value, list) or not all(isinstance(p, int) and 0 < p < 65536 for p in value):
+        raise ValueError(f"{where}: debe ser una lista de puertos (1-65535)")
+    return set(value)
+
+
+def _names(value, where):
+    if not isinstance(value, list) or not all(isinstance(n, str) and n for n in value):
+        raise ValueError(f"{where}: debe ser una lista de textos")
+    return set(value)
+
+
+def _rule_from_dict(d, i):
+    where = f"regla {i + 1}"
+    if not isinstance(d, dict):
+        raise ValueError(f"{where}: debe ser un objeto")
+    unknown = set(d) - _RULE_FIELDS
+    if unknown:   # una errata ("servedports") no debe ignorarse en silencio
+        raise ValueError(f"{where}: campos desconocidos {sorted(unknown)}")
+    label = d.get("label")
+    if not isinstance(label, str) or not label.strip():
+        raise ValueError(f"{where}: falta 'label'")
+    where = f"regla '{label}'"
+    kwargs = {"label": label}
+    for k in _PORT_FIELDS:
+        if k in d:
+            kwargs[k] = _ports(d[k], f"{where}, {k}")
+    for k in _NAME_FIELDS:
+        if k in d:
+            kwargs[k] = _names(d[k], f"{where}, {k}")
+    for k in _REGEX_FIELDS:
+        if k in d:
+            if not isinstance(d[k], str) or not d[k]:
+                raise ValueError(f"{where}, {k}: debe ser una expresión regular")
+            try:
+                re.compile(d[k])
+            except re.error as e:
+                raise ValueError(f"{where}, {k}: expresión regular no válida ({e})") from None
+            kwargs[k] = d[k]
+    return Rule(**kwargs)
+
+
+def load_rules(path=None):
+    """Lee y valida un fichero de reglas. Devuelve (rules, weights, confidence_levels)."""
+    path = Path(path) if path else DEFAULT_RULES_PATH
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict) or not isinstance(data.get("rules"), list) or not data["rules"]:
+        raise ValueError(f"{path}: falta la lista 'rules'")
+    w = data.get("weights", {})
+    weights = {
+        "strong_ports": _ports(w.get("strong_ports", []), "weights.strong_ports"),
+        "weak_ports": _ports(w.get("weak_ports", []), "weights.weak_ports"),
+        "medium_mdns": _names(w.get("medium_mdns", []), "weights.medium_mdns"),
+    }
+    levels = data.get("confidence_levels", [])
+    try:
+        levels = tuple(sorted(((int(x["min_score"]), str(x["label"])) for x in levels), reverse=True))
+    except (KeyError, TypeError, ValueError):
+        raise ValueError(f"{path}: confidence_levels mal formado") from None
+    if not levels:
+        raise ValueError(f"{path}: faltan confidence_levels")
+    rules = [_rule_from_dict(d, i) for i, d in enumerate(data["rules"])]
+    return rules, weights, levels
+
+
+def use_rules(path=None):
+    """Activa un fichero de reglas (por defecto rules.json) para classify()."""
+    global RULES, STRONG_PORTS, WEAK_PORTS, MEDIUM_MDNS, CONFIDENCE_LEVELS
+    rules, weights, levels = load_rules(path)
+    RULES, CONFIDENCE_LEVELS = rules, levels
+    STRONG_PORTS, WEAK_PORTS = weights["strong_ports"], weights["weak_ports"]
+    MEDIUM_MDNS = weights["medium_mdns"]
+    log.debug("%d reglas cargadas de %s", len(RULES), path or DEFAULT_RULES_PATH)
+    return RULES
+
+
+use_rules()
 
 
 def _confidence(score):
@@ -150,6 +175,9 @@ def evaluate_rule(rule, dev):
         evidence.append((f"conecta a puerto {p}", port_weight(p)))
     for s in sorted(rule.mdns & dev.mdns_services):
         evidence.append((f"anuncia {s}", mdns_weight(s)))
+    # El tipo WS-Discovery lo declara el propio dispositivo y es muy específico
+    for t in sorted(rule.wsd & dev.wsd_types):
+        evidence.append((f"WS-Discovery {t}", WEIGHT_STRONG))
 
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el

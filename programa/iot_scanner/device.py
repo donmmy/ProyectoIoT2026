@@ -22,6 +22,7 @@ class Device:
     ipv6: set = field(default_factory=set)         # direcciones IPv6 (Matter/Thread usan IPv6)
     tls_sni: set = field(default_factory=set)      # servidores TLS a los que se conecta (SNI)
     ntp_servers: set = field(default_factory=set)  # servidores NTP que consulta
+    wsd_types: set = field(default_factory=set)    # tipos WS-Discovery (NetworkVideoTransmitter...)
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
 
@@ -48,5 +49,6 @@ class Device:
             "ipv6": sorted(self.ipv6),
             "tls_sni": sorted(self.tls_sni),
             "ntp_servers": sorted(self.ntp_servers),
+            "wsd_types": sorted(self.wsd_types),
             "labels": self.labels,
         }
