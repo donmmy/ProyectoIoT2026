@@ -24,7 +24,9 @@ Privacidad: a internet solo salen el modelo (texto que el propio dispositivo anu
 la red) y nombres CPE; nunca MAC, IP, hostname ni nombres que ponga el usuario.
 
 Las respuestas se guardan en una caché local (24 h) para no repetir consultas: NVD sin
-clave admite 5 peticiones cada 30 s (con NVD_API_KEY, 50).
+clave admite 5 peticiones cada 30 s; con clave, 50. La clave se lee de la variable
+NVD_API_KEY o del fichero programa/nvd_api_key.txt (en .gitignore), solo se envía a NVD
+y nunca se escribe en el registro.
 """
 
 import hashlib
@@ -45,6 +47,7 @@ KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulner
 USER_AGENT = "iot-scanner (proyecto academico)"   # genérico: sin datos del usuario
 
 CACHE_DIR = Path.home() / ".cache" / "iot_scanner"
+NVD_KEY_FILE = Path(__file__).resolve().parent.parent / "nvd_api_key.txt"
 CACHE_TTL = 24 * 3600
 HTTP_TIMEOUT = 30
 MAX_RESPONSE_BYTES = 32 * 1024 * 1024   # KEV ocupa ~2 MB; un tope evita respuestas enormes
@@ -78,13 +81,25 @@ def _http_get_json(url, headers):
         return json.loads(resp.read(MAX_RESPONSE_BYTES))
 
 
+def read_api_key(path=None):
+    """Clave de NVD: la variable NVD_API_KEY o, si no está, la primera línea útil del fichero."""
+    key = os.environ.get("NVD_API_KEY", "").strip()
+    if key:
+        return key
+    try:
+        lines = Path(path or NVD_KEY_FILE).read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    return next((s for s in map(str.strip, lines) if s and not s.startswith("#")), None)
+
+
 class Client:
     """Hace las peticiones (o las saca de la caché) respetando el límite de NVD."""
 
     def __init__(self, cache_dir=CACHE_DIR, api_key=None, fetch=None, sleep=time.sleep,
                  ttl=CACHE_TTL):
         self.cache_dir = Path(cache_dir) if cache_dir else None
-        self.api_key = api_key if api_key is not None else os.environ.get("NVD_API_KEY")
+        self.api_key = api_key if api_key is not None else read_api_key()
         self.fetch = fetch or _http_get_json
         self.sleep = sleep
         self.ttl = ttl
@@ -315,8 +330,9 @@ def lookup_device(dev, client, kev, memo=None):
 def lookup_all(devices, client=None):
     """Busca CVE para todos los dispositivos con modelo o software reconocido."""
     client = client or Client()
-    log.info("Buscando CVE en NVD y CISA KEV (solo se envían modelos, nunca MAC/IP). "
-             "Sin NVD_API_KEY cada consulta espera %.0f s.", NVD_PAUSE)
+    log.info("Buscando CVE en NVD y CISA KEV (solo se envían modelos, nunca MAC/IP). %s",
+             "Con clave de NVD." if client.api_key else
+             f"Sin clave de NVD cada consulta espera {NVD_PAUSE:.0f} s (ver nvd_api_key.txt).")
     kev = load_kev(client)
     stats = {"searched": 0, "without_model": 0, "no_cpe": 0, "cves": 0, "kev": 0,
              "discarded_by_version": 0, "requests": 0, "errors": 0, "kev_loaded": bool(kev)}

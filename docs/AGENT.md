@@ -124,7 +124,9 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   (versión fuera del rango). KEV solo **marca**: buscar en KEV por fabricante da ruido (Google →
   decenas de Chromium), así que sin modelo no se busca. Alerta ALTA solo si KEV +
   modelo+firmware. Solo salen a internet modelos y nombres CPE. Caché de 24 h en
-  `~/.cache/iot_scanner`; 6 s entre consultas a NVD (0,6 s con `NVD_API_KEY`). Tests con
+  `~/.cache/iot_scanner`; 6 s entre consultas a NVD (0,6 s con clave). La clave se lee de
+  `NVD_API_KEY` o de `programa/nvd_api_key.txt` (en `.gitignore`; `read_api_key()`), solo va
+  en las peticiones a NVD y nunca se registra. Tests con
   NVD/KEV simulados (`tests/test_vulns.py`, CVE inventados CVE-1999-9xxx).
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se

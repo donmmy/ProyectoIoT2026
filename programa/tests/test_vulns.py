@@ -201,8 +201,9 @@ def test_version_in_range(match, versions, expected):
     assert vulns.version_in_range(match, versions) is expected
 
 
-def test_nvd_rate_limit_and_api_key(monkeypatch):
+def test_nvd_rate_limit_and_api_key(monkeypatch, tmp_path):
     monkeypatch.delenv("NVD_API_KEY", raising=False)
+    monkeypatch.setattr(vulns, "NVD_KEY_FILE", tmp_path / "no-existe.txt")   # ni la clave real
     waits = []
     net = FakeInternet()
     client = vulns.Client(cache_dir=None, fetch=net, sleep=waits.append)
@@ -219,6 +220,32 @@ def test_nvd_rate_limit_and_api_key(monkeypatch):
     client.get(vulns.NVD_CVES + "?a=2")
     assert waits and waits[0] <= vulns.NVD_PAUSE_KEY
     assert net.headers[-1] == {"apiKey": "clave-de-prueba"}
+
+
+def test_api_key_file(monkeypatch, tmp_path, caplog):
+    monkeypatch.delenv("NVD_API_KEY", raising=False)
+    key_file = tmp_path / "nvd_api_key.txt"
+    monkeypatch.setattr(vulns, "NVD_KEY_FILE", key_file)
+    assert vulns.read_api_key() is None                       # sin fichero
+
+    key_file.write_text("# comentario\n\n  clave-del-fichero  \n", encoding="utf-8")
+    assert vulns.read_api_key() == "clave-del-fichero"
+    key_file.write_text("# solo comentarios\n", encoding="utf-8")
+    assert vulns.read_api_key() is None
+
+    key_file.write_text("clave-del-fichero\n", encoding="utf-8")
+    monkeypatch.setenv("NVD_API_KEY", "clave-de-entorno")
+    assert vulns.read_api_key() == "clave-de-entorno"         # la variable manda
+
+    # La clave va solo a NVD (no a KEV) y nunca aparece en el registro
+    net = FakeInternet()
+    client = vulns.Client(cache_dir=None, fetch=net, sleep=lambda s: None)
+    caplog.set_level("DEBUG", logger="iot_scanner")
+    vulns.lookup_all({"x": Device(mac="x", models={PRINTER_MODEL})}, client)
+    sent = dict(zip(net.urls, net.headers))
+    assert sent[vulns.KEV_URL] == {}
+    assert all(h == {"apiKey": "clave-de-entorno"} for u, h in sent.items() if u != vulns.KEV_URL)
+    assert "clave-de-entorno" not in caplog.text and "Con clave de NVD" in caplog.text
 
 
 def test_only_https():

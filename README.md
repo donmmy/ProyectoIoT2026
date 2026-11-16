@@ -106,8 +106,10 @@ python net_device_scanner.py --pcap c.pcap --cve                         # + CVE
   anunciada es vulnerable) o **modelo** (sin versión); los que la versión descarta no salen.
   Van en una sección aparte de las alertas; solo pasa a alerta ALTA un CVE en KEV con certeza
   modelo+firmware. A internet solo se envían modelos, nunca MAC/IP/hostname. Caché de 24 h en
-  `~/.cache/iot_scanner` (`--cve-cache`); sin clave NVD espera 6 s entre consultas
-  (variable `NVD_API_KEY` para ir más rápido).
+  `~/.cache/iot_scanner` (`--cve-cache`). Sin clave de NVD espera 6 s entre consultas; con
+  [clave](https://nvd.nist.gov/developers/request-an-api-key), 0,6 s: pégala en
+  `programa/nvd_api_key.txt` (está en `.gitignore`, no se sube) o en la variable `NVD_API_KEY`.
+  La clave solo se envía a NVD y no sale en el registro.
 - **Reglas**: las reglas de identificación, sus pesos y umbrales están en
   `iot_scanner/rules.json`; se pueden editar o cargar otro fichero con `--rules`.
 

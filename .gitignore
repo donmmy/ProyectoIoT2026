@@ -26,3 +26,6 @@ htmlcov/
 
 # Registros de --log (llevan MAC, IP y hostnames reales)
 *.log
+
+# Clave de la API de NVD (--cve): es personal, no se sube
+nvd_api_key.txt
