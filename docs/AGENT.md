@@ -35,8 +35,8 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **60 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
-paquete `iot_scanner`: 92 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
+Tests: **79 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
 
@@ -61,8 +61,10 @@ programa/               todo el código (ejecutar desde aquí)
     heuristics.py       Hito 3: load_rules/use_rules (lee rules.json), evaluate_rule, classify
     rules.json          reglas, pesos y umbrales (editable; --rules carga otro fichero)
     logsetup.py         logging común CLI/GUI: consola [*]/[!] y --log fichero
-    report.py           Hito 4: build_alerts, build_summary, print_*, export_json, export_csv,
-                        anonymize (seudónimos HMAC para --anonymize)
+    report.py           Hito 4: build_alerts, build_cve_list, build_summary, print_*, export_json,
+                        export_csv, anonymize (seudónimos HMAC para --anonymize)
+    vulns.py            --cve: Client (caché + ritmo NVD), find_products (modelo -> CPE),
+                        product_cves, assess (certeza), version_in_range, load_kev, lookup_all
   tests/
     lab_packets.py      tráfico sintético del "laboratorio" (cámara, Chromecast, enchufe Tuya,
                         sensor ESP32 MQTT, bombilla Matter por IPv6, dispositivo con hostname
@@ -115,6 +117,15 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   (protocolo) **no** son firmware. El modelo cuenta como texto propio (+2) en las reglas. Con
   `--anonymize` solo quedan las claves de `SAFE_TXT_KEYS` (lista blanca): `id`, `mac`, `fn`,
   `note`… identifican al equipo o al usuario.
+- **Búsqueda de CVE** (`--cve`, 2026-11-16): NVD por CPE + CISA KEV, aparte de las alertas.
+  Modelo → CPE con el diccionario de NVD, aceptando solo productos cuyo nombre aparece tal cual
+  en el modelo; software por servicio mDNS (`SERVICE_PRODUCTS`: ESPHome). Certeza
+  **modelo+firmware** (versión en el rango), **modelo** (sin versión o sin rango) o descartado
+  (versión fuera del rango). KEV solo **marca**: buscar en KEV por fabricante da ruido (Google →
+  decenas de Chromium), así que sin modelo no se busca. Alerta ALTA solo si KEV +
+  modelo+firmware. Solo salen a internet modelos y nombres CPE. Caché de 24 h en
+  `~/.cache/iot_scanner`; 6 s entre consultas a NVD (0,6 s con `NVD_API_KEY`). Tests con
+  NVD/KEV simulados (`tests/test_vulns.py`, CVE inventados CVE-1999-9xxx).
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
   lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
@@ -178,7 +189,8 @@ cd programa
 
 Captura en vivo: Windows necesita **Npcap** y consola de administrador; Linux/Mac `sudo`.
 Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `--no-sniff`,
-`--pcap`, `-o`, `--csv`, `--anonymize`, `--rules`, `--log`, `-v`, `--list-ifaces`.
+`--pcap`, `-o`, `--csv`, `--anonymize`, `--cve`, `--cve-cache`, `--rules`, `--log`, `-v`,
+`--list-ifaces`.
 
 ## Entorno y trampas conocidas
 
@@ -215,10 +227,10 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [x] TXT de mDNS: modelo y firmware (2026-11-16).
 - [ ] Sacar versiones de los banners que ya se guardan (SSDP `SERVER`, DHCP vendor class),
   distinguiendo firmware de librería (`udhcp 1.24.1` es BusyBox, no el firmware).
-- [ ] Búsqueda de vulnerabilidades (`--cve`, opcional y con internet): CISA KEV en local + NVD
-  por CPE con caché; enviar solo fabricante/modelo; cada resultado con su nivel de certeza
-  (fabricante / modelo / modelo + firmware). Probado a mano el 2026-11-16: NVD por texto del
-  modelo da 0 resultados; hay que emparejar por CPE (CVE-2021-36260, en KEV, lista 610 CPE).
+- [x] Búsqueda de vulnerabilidades `--cve` (2026-11-16): NVD por CPE + KEV, caché, certeza
+  modelo / modelo+firmware. El nivel "solo fabricante" se descartó (KEV por fabricante = ruido).
+- [ ] CVE: más software en `SERVICE_PRODUCTS` (Shelly, Tasmota…) y probar con los
+  dispositivos reales del laboratorio cuántos se emparejan con un CPE (Hito 6).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
   dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
@@ -268,3 +280,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - **2026-11-16** — Análisis de vulnerabilidades, primer paso: lectura de los TXT de mDNS
   (modelo y firmware, con exclusiones `txtvers`/`ve` y lista blanca al anonimizar). Prueba
   manual de NVD y CISA KEV para planificar `--cve`. Tests 55 → 60. Asistido por Claude.
+- **2026-11-16** — Búsqueda de CVE (`--cve`): `vulns.py` con NVD por CPE y CISA KEV, caché,
+  ritmo de NVD y nivel de certeza; sección aparte en consola/JSON/CSV y pestaña CVE en la GUI;
+  alerta solo con KEV + modelo+firmware. Probado contra NVD real con el laboratorio sintético.
+  Tests 60 → 79. Asistido por Claude.

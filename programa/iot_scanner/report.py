@@ -4,6 +4,8 @@ Hito 4 — Exportación e informe.
 - Tabla por consola y exportación a JSON/CSV.
 - Resumen final: recuento de dispositivos, protocolos más comunes y alertas
   simples (puertos sensibles expuestos, protocolos en claro).
+- Vulnerabilidades conocidas (--cve) en una sección aparte: una alerta es un hecho
+  observado en el tráfico; un CVE depende de cuánto sabemos del modelo y su versión.
 """
 
 import csv
@@ -78,8 +80,23 @@ def build_alerts(devices):
                 sev, msg = SENSITIVE_CLIENT[port]
                 alerts.append({"severity": sev, "device": who, "mac": dev.mac,
                                "port": port, "message": msg})
+        # Un CVE solo pasa a alerta si es tan seguro y urgente como un Telnet abierto:
+        # explotado activamente (KEV) y con la versión anunciada dentro del rango vulnerable
+        for c in dev.cves:
+            if c["kev"] and c["certainty"] == "modelo+firmware":
+                alerts.append({"severity": "ALTA", "device": who, "mac": dev.mac, "port": None,
+                               "message": f"{c['id']} explotado activamente (CISA KEV) "
+                                          "y la versión anunciada es vulnerable"})
     alerts.sort(key=lambda a: (SEVERITY_ORDER[a["severity"]], a["device"]))
     return alerts
+
+
+def build_cve_list(devices):
+    """Todos los CVE en una lista plana (para la consola, la GUI y el resumen)."""
+    rows = [{"device": dev.ip or dev.mac, "mac": dev.mac, **c}
+            for dev in devices.values() for c in dev.cves]
+    rows.sort(key=lambda r: (not r["kev"], r["certainty"] != "modelo+firmware", -(r["cvss"] or 0)))
+    return rows
 
 
 def build_summary(devices, meta=None):
@@ -94,6 +111,7 @@ def build_summary(devices, meta=None):
         "top_protocols": protocols.most_common(10),
         "device_types": types.most_common(),
         "alerts": build_alerts(devices),
+        "cves": build_cve_list(devices),
     }
 
 
@@ -158,7 +176,7 @@ def anonymize(devices, meta=None, key=None):
             ipv6={pseudo("ip6", a) for a in d.ipv6},
             banners={_anonymize_banner(b, pseudo) for b in d.banners},
             mdns_txt={t for t in d.mdns_txt if _keep_txt(t)},
-            labels=[dict(c) for c in d.labels])
+            labels=[dict(c) for c in d.labels], cves=[dict(c) for c in d.cves])
         out[new.mac] = new
     meta = dict(meta or {})
     if meta.get("iface"):
@@ -208,8 +226,29 @@ def print_summary(summary):
     if not alerts:
         print("   (ninguna)")
     for a in alerts:
-        print(f"   [{a['severity']:<5}] {a['device']:<16} puerto {a['port']:<5} {a['message']}")
+        port = a["port"] if a["port"] is not None else "-"
+        print(f"   [{a['severity']:<5}] {a['device']:<16} puerto {port:<5} {a['message']}")
+    print_cves(summary)
     print()
+
+
+def print_cves(summary):
+    stats = summary.get("cve_search")
+    if not stats:
+        print("\nVulnerabilidades conocidas: no buscadas (usa --cve; necesita internet)")
+        return
+    cves = summary.get("cves", [])
+    print(f"\nVulnerabilidades conocidas ({len(cves)}, de NVD; certeza modelo+firmware > modelo):")
+    if not cves:
+        print("   (ninguna)")
+    for c in cves:
+        kev = "KEV" if c["kev"] else ""
+        score = c["cvss"] if c["cvss"] is not None else "-"
+        print(f"   {c['id']:<16} {score!s:<5} {kev:<4} {c['certainty']:<16} {c['device']:<16} {c['product']}")
+    print(f"   Buscados {stats['searched']} dispositivos con modelo; {stats['without_model']} sin modelo "
+          f"no se buscan; {stats['discarded_by_version']} CVE descartados por versión.")
+    if stats.get("errors"):
+        print(f"   [!] {stats['errors']} consultas fallaron: el resultado puede estar incompleto.")
 
 
 # ----------------------------------------------------------------------
@@ -229,13 +268,17 @@ def export_json(devices, summary, path):
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt", "cves"]
 
 
 def _csv_safe(value):
     """Evita inyección de fórmulas al abrir el CSV en Excel/LibreOffice."""
     s = str(value)
     return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+
+
+def _cve_cell(c):
+    return f"{c['id']} ({c['cvss']}, {c['certainty']}{', KEV' if c['kev'] else ''})"
 
 
 def export_csv(devices, path):
@@ -263,6 +306,7 @@ def export_csv(devices, path):
                 "models": " | ".join(sorted(d.models)),
                 "firmware": " | ".join(sorted(d.firmware)),
                 "mdns_txt": " | ".join(sorted(d.mdns_txt)),
+                "cves": " | ".join(_cve_cell(c) for c in d.cves),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
     log.info("CSV guardado en %s", path)

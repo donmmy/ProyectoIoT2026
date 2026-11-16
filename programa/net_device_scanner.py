@@ -23,6 +23,7 @@ Uso:
     python3 net_device_scanner.py --list-ifaces
     python3 net_device_scanner.py --pcap c.pcap --anonymize -o res.json   # informe sin MAC/IP reales
     python3 net_device_scanner.py --pcap c.pcap --log scanner.log -v      # registro de depuración
+    python3 net_device_scanner.py --pcap c.pcap --cve                     # + CVE conocidos (internet)
 """
 
 import argparse
@@ -36,7 +37,7 @@ except ImportError:
     print("[!] Falta scapy. Instálalo con: pip install -r requirements.txt")
     sys.exit(1)
 
-from iot_scanner import discovery, heuristics, report, sniffer
+from iot_scanner import discovery, heuristics, report, sniffer, vulns
 from iot_scanner.logsetup import LOGGER_NAME, setup_logging
 
 log = logging.getLogger(f"{LOGGER_NAME}.cli")
@@ -61,6 +62,10 @@ def parse_args(argv=None):
     p.add_argument("--anonymize", action="store_true",
                    help="Seudónimos (HMAC con clave aleatoria) para MAC, IP, hostname... en JSON/CSV")
     p.add_argument("--rules", help="Fichero de reglas JSON propio (por defecto iot_scanner/rules.json)")
+    p.add_argument("--cve", action="store_true",
+                   help="Busca CVE conocidos en NVD y CISA KEV (internet; solo envía modelos)")
+    p.add_argument("--cve-cache", default=str(vulns.CACHE_DIR),
+                   help=f"Carpeta de la caché de CVE (default {vulns.CACHE_DIR})")
     p.add_argument("--log", help="Guarda un registro detallado (DEBUG) en este fichero")
     p.add_argument("-v", "--verbose", action="store_true", help="Muestra también los mensajes de depuración")
     p.add_argument("--list-ifaces", action="store_true", help="Lista las interfaces disponibles y sale")
@@ -116,6 +121,8 @@ def analyze(args, stop_event=None):
     else:
         devices, meta = run_live(args, stop_event)
     heuristics.classify_all(devices)
+    if getattr(args, "cve", False):
+        meta["cve_search"] = vulns.lookup_all(devices, vulns.Client(cache_dir=args.cve_cache))
     return devices, meta
 
 

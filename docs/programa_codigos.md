@@ -28,7 +28,7 @@ el OUI de la MAC da el fabricante.
 | Envío/recepción en capa 2 | `srp(pkt, timeout, iface, retry, inter)` | `discovery.py:126` | Envía tramas crudas y empareja pregunta ↔ respuesta |
 | La respuesta trae IP + MAC | `resp[ARP].hwsrc`, `resp[ARP].psrc` | `discovery.py:130-131` | No hace falta un segundo paso de búsqueda |
 | La MAC identifica al dispositivo (la IP cambia por DHCP) | `devices[mac] = Device(...)` | `discovery.py:131` | Diccionario con la MAC como clave |
-| Aislamiento de clientes (AP isolation) | `if not devices: mode = "fallback-sniff-only"` | `net_device_scanner.py:90-97` | Si nadie responde al ARP, pasa a escucha pasiva (mín. 30 s) |
+| Aislamiento de clientes (AP isolation) | `if not devices: mode = "fallback-sniff-only"` | `net_device_scanner.py:95-102` | Si nadie responde al ARP, pasa a escucha pasiva (mín. 30 s) |
 
 **Puntos débiles detectados:** recorte a /24 silencioso; `_get_manuf` es API privada
 de Scapy; si una IP responde con varias MACs (proxy ARP), cada respuesta pisa la
@@ -85,7 +85,7 @@ hostname, servicios y banners.
 | Inyección vía campos de red (riesgo del PDF) | `_SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")` | `sniffer.py:63` | Lista blanca: todo lo demás se borra (secuencias ANSI, `<`, `;`, comillas, saltos de línea) |
 | Limitar longitud | `value[:max_len]` | `sniffer.py:73` | 64 caracteres por defecto (128 nombres DNS, 96 banners SSDP) |
 | Bytes con codificación inválida | `decode("utf-8", errors="ignore")` | `sniffer.py:71` | No revienta con bytes basura |
-| Un dispositivo ruidoso no infla la memoria | `MAX_ITEMS = 64` | `device.py:6`, `:32-36` | Máximo 64 elementos por conjunto |
+| Un dispositivo ruidoso no infla la memoria | `MAX_ITEMS = 64` | `device.py:6`, `:33-37` | Máximo 64 elementos por conjunto |
 
 **Puntos débiles detectados:**
 - En una red con switch o WiFi solo se ve el tráfico propio + broadcast/multicast; el
@@ -143,7 +143,7 @@ dispositivo no use IPv4. Añadidas el 2026-10-21 (código asistido por IA).
 | `Scopes` ONVIF: `onvif://www.onvif.org/name/...`, `/hardware/...` (modelo) | `ONVIF_SCOPE_KEYS`; `unquote` | `sniffer.py:52`, `:203-208` | Banners `ONVIF:hardware=DS-2CD2043G2-I`, `ONVIF:name=...` (sirven a la regex de texto y, en el futuro, a buscar CVE por modelo) |
 | XML no confiable: un parser XML se expone a entidades externas (XXE) o expansión de entidades | regex acotadas `{0,256}`, `[^<]`; `WSD_MAX_BYTES = 8192` | `sniffer.py:46-51` | Sin parser, sin backtracking catastrófico, tamaño limitado y texto saneado |
 | El tipo lo declara el propio dispositivo y es muy específico | `rule.wsd & dev.wsd_types` → `WEIGHT_STRONG` | `heuristics.py:179-180` | +3 para cámara, impresora o Windows |
-| ONVIF activo revela el modelo | `SENSITIVE_SERVED[3702]` | `report.py:35` | Alerta BAJA: revisar la autenticación ONVIF |
+| ONVIF activo revela el modelo | `SENSITIVE_SERVED[3702]` | `report.py:37` | Alerta BAJA: revisar la autenticación ONVIF |
 
 Límite: el `Hello` solo se envía al conectarse el dispositivo a la red, y la respuesta a un
 `Probe` (`ProbeMatches`) va por unicast a quien preguntó. En pasivo se ve la cámara si
@@ -173,7 +173,7 @@ pasiva más rentable para subir de "fabricante" a "modelo" o "modelo + versión"
 | No todo lo que parece versión es firmware | (excluidas a propósito) | `sniffer.py:54-57` | `txtvers` = versión del **formato** del TXT; `ve` en Chromecast = versión del **protocolo** |
 | Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:143-151`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
 | El modelo es texto que el dispositivo dice de sí mismo | `own = hostname + models + banners` | `heuristics.py:185` | Pesa +2 en las reglas (frente a +1 del fabricante por OUI) |
-| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:133-140`, `:160` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
+| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:151-158`, `:178` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
 
 Límites: el saneado solo admite ASCII (`Salón` queda como `Saln`); no todos los
 fabricantes usan las mismas claves, así que habrá TXT con versión que no se reconozcan
@@ -228,7 +228,7 @@ Sin datos reales para calcular los cocientes (eso es el Hito 6), se usan tres ni
 | Servicios mDNS: específicos salvo los compartidos | `"medium_mdns"` → `MEDIUM_MDNS`, `mdns_weight()` | `rules.json:7`, `heuristics.py:47-48` | `_googlecast._tcp` = 3; `_airplay._tcp` (Apple TV, Mac, altavoces) = 2 |
 | Lo que el dispositivo dice de sí mismo pesa más que su fabricante | `own = hostname + banners` → +2; si no, `vendor` → +1 | `heuristics.py:182-192` | **Fabricante ≠ tipo**: un móvil Google ya no pasa de "baja" como TV |
 | Dominio de la nube del fabricante → fuerte | `WEIGHT_STRONG` | `heuristics.py:194-201` | `hik-connect.com`, `tuyaeu.com` (DNS o SNI de TLS) |
-| El peso solo afecta a identificar, no al riesgo | (sin cambios en `report.py`) | `report.py:23-44` | El 80 y el 1900 siguen generando sus alertas de seguridad |
+| El peso solo afecta a identificar, no al riesgo | (sin cambios en `report.py`) | `report.py:25-46` | El 80 y el 1900 siguen generando sus alertas de seguridad |
 
 ### Las reglas
 
@@ -257,7 +257,7 @@ Sin datos reales para calcular los cocientes (eso es el Hito 6), se usan tres ni
 | Umbrales sobre la suma | `"confidence_levels"` → `CONFIDENCE_LEVELS`; `_confidence()` | `rules.json:9-13`, `heuristics.py:160-164` | Una pista fuerte sola = media; para alta hacen falta varias pistas |
 | Varias hipótesis ordenadas | `candidates.sort(...)`; `[:max_labels]` | `heuristics.py:218-219` | Hasta 3 etiquetas; en empate gana la regla que va antes en `RULES` |
 | Sin evidencias, sin etiqueta | `if ev:` | `heuristics.py:210` | Un dispositivo sin pistas queda "Sin identificar" (mejor que inventar) |
-| Se ejecuta tras el sniffing | `heuristics.classify_all(devices)` | `net_device_scanner.py:118` | Rellena `dev.labels` para el informe (Hito 4) |
+| Se ejecuta tras el sniffing | `heuristics.classify_all(devices)` | `net_device_scanner.py:123` | Rellena `dev.labels` para el informe (Hito 4) |
 
 **Antes y después** (casos comprobados el 2026-10-21 y el 2026-10-25):
 
@@ -294,7 +294,7 @@ Qwen (otro asistente de IA) propuso una lista de mejoras; el autor eligió estas
 | Separar datos (conocimiento) de código (motor): reglas nuevas sin tocar Python | `rules.json` + `load_rules()` | `rules.json`, `heuristics.py:122-143` | Reglas, pesos y umbrales en un fichero; se cargan al importar (`use_rules()`, `heuristics.py:157`) |
 | JSON y no YAML | — | — | Sin dependencia nueva (PyYAML no compilaba en Python 3.15) y sin el riesgo de cargar YAML con etiquetas de objetos |
 | Validar la entrada: una errata no debe pasar en silencio | `unknown = set(d) - _RULE_FIELDS`; `re.compile(...)` | `heuristics.py:96-98`, `:115` | Campos desconocidos, puertos fuera de 1-65535 o regex mal escritas → `ValueError` con el nombre de la regla |
-| Reglas propias del analista | `--rules fichero.json` → `use_rules(path)` | `net_device_scanner.py:63`, `:111-112` | Cambia las reglas sin editar el paquete. El fichero es configuración de confianza: una regex mal hecha puede ser lenta (ReDoS) |
+| Reglas propias del analista | `--rules fichero.json` → `use_rules(path)` | `net_device_scanner.py:64`, `:116-117` | Cambia las reglas sin editar el paquete. El fichero es configuración de confianza: una regex mal hecha puede ser lenta (ReDoS) |
 
 ### print() → logging
 
@@ -302,8 +302,8 @@ Qwen (otro asistente de IA) propuso una lista de mejoras; el autor eligió estas
 |---|---|---|---|
 | Separar **salida** (la tabla, el resumen: stdout) de **registro** (progreso y avisos: stderr / fichero) | `setup_logging()` | `logsetup.py:29-58` | `print_table`/`print_summary` siguen con `print`; el resto pasa a `logging` |
 | Niveles: DEBUG (detalle), INFO (progreso), WARNING/ERROR (avisos) | `ConsoleFormatter` | `logsetup.py:19-26` | En consola se mantiene el estilo `[*]` / `[!]`; `[.]` para depuración |
-| Registro persistente para depurar | `--log scanner.log`, `-v` | `net_device_scanner.py:64-65`, `logsetup.py:50-54` | El fichero recibe todo (DEBUG) con fecha y módulo |
-| Un logger por módulo bajo `iot_scanner` | `log = logging.getLogger(__name__)` | todos los módulos | La GUI cuelga su propio handler para la pestaña Registro (`gui.py:115`) |
+| Registro persistente para depurar | `--log scanner.log`, `-v` | `net_device_scanner.py:69-70`, `logsetup.py:50-54` | El fichero recibe todo (DEBUG) con fecha y módulo |
+| Un logger por módulo bajo `iot_scanner` | `log = logging.getLogger(__name__)` | todos los módulos | La GUI cuelga su propio handler para la pestaña Registro (`gui.py:117`) |
 
 El registro y la consola **no se anonimizan**: son para el analista. Solo los ficheros
 exportados con `--anonymize` llevan seudónimos.
@@ -312,13 +312,13 @@ exportados con `--anonymize` llevan seudónimos.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:150-169` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
-| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:150-169` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
-| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:118-127` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
-| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:118-127` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
-| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:143-147` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
-| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:167` | `C:\Users\…\lab.pcap` → `lab.pcap` |
-| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:122-134`; casilla en `gui.py:285` | La tabla en pantalla sigue mostrando los datos reales |
+| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:168-187` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
+| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:168-187` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
+| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:136-145` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
+| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:136-145` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
+| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:161-165` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
+| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:185` | `C:\Users\…\lab.pcap` → `lab.pcap` |
+| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:129-141`; casilla en `gui.py:301` | La tabla en pantalla sigue mostrando los datos reales |
 
 Limitación: las consultas DNS y el SNI se conservan porque son evidencia técnica, pero en
 un móvil pueden revelar hábitos de navegación.
@@ -349,7 +349,71 @@ un móvil pueden revelar hábitos de navegación.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:510-523` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:550-563` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+
+## Análisis de vulnerabilidades (`iot_scanner/vulns.py`, añadido el 2026-11-16)
+
+Con el modelo y el firmware que dejan los TXT de mDNS se pueden buscar **vulnerabilidades ya
+conocidas** (CVE). Es opcional (`--cve`) porque necesita internet. Va **aparte de las alertas**:
+una alerta es un hecho observado ("sirve Telnet"); un CVE es una hipótesis que depende de cuánto
+sabemos del dispositivo.
+
+### Fuentes y vocabulario
+
+- **CVE**: identificador público de una vulnerabilidad (CVE-AAAA-NNNN).
+- **NVD** (NIST): base de datos que enriquece cada CVE con su gravedad (**CVSS**, 0-10) y con
+  **qué productos afecta**, escritos como **CPE**.
+- **CPE**: nombre normalizado de un producto,
+  `cpe:2.3:parte:fabricante:producto:versión:...`, donde la parte es `h` (hardware),
+  `o` (sistema operativo o firmware) o `a` (aplicación). En IoT, NVD suele escribir "el firmware
+  `o:brother:hl-l2350dw_firmware` (vulnerable) sobre el hardware `h:brother:hl-l2350dw`".
+- **CISA KEV**: catálogo de CVE que **se están explotando** de verdad. Sirve para priorizar.
+
+### De la teoría al código
+
+| Teoría | Código | Dónde | Qué hace |
+|---|---|---|---|
+| Buscar el CVE por el texto del modelo no funciona: NVD empareja por CPE | `find_products()` | `vulns.py:165-188` | Busca el modelo en el diccionario CPE y se queda con los productos cuyo nombre aparece **tal cual** en el modelo (`_appears_in`, `:160-162`): `hl-l2350dw` sí casa con "Brother HL-L2350DW series"; `hl-l2350` y `dcp-1610w` no. Quita palabras que no están en CPE ("series", `MODEL_NOISE`, `:63`) |
+| Software reconocible aunque no anuncie modelo | `SERVICE_PRODUCTS` | `vulns.py:58-60`, `device_products()` `:191-198` | `_esphomelib._tcp` → `esphome:esphome`; su `version=` es la del software |
+| CVE de un producto en NVD | `product_cves()` | `vulns.py:262-277` | `virtualMatchString=cpe:2.3:*:fabricante:producto` (cualquier parte) y, si existe, también `..._firmware` |
+| Niveles de certeza: fabricante < modelo < modelo + firmware | `assess()` | `vulns.py:229-243` | **modelo+firmware** si la versión anunciada cae en el rango vulnerable; **modelo** si no hay versión o NVD no da rango; si el rango la excluye, el CVE **se descarta** |
+| Rangos de versión de NVD | `version_in_range()`, `_vkey()` | `vulns.py:205-226` | Versión exacta en el CPE, o `versionStart/EndIncluding/Excluding`; compara las versiones como números (`2024.6.1` → `(2024, 6, 1)`) |
+| Gravedad | `_cvss()` | `vulns.py:246-253` | CVSS v4.0, si no v3.1, v3.0 o v2 (la "Primary", que es la de NVD) |
+| KEV marca, no busca | `load_kev()` | `vulns.py:280-283` | Solo dice si un CVE encontrado por modelo está en KEV. Buscar en KEV por fabricante es ruido: "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un Chromecast. Por eso **solo con el fabricante no se busca** |
+| NVD sin clave admite 5 peticiones cada 30 s | `Client._throttle()` | `vulns.py:112-118` | 6 s entre consultas (0,6 s con `NVD_API_KEY`); KEV no cuenta |
+| No repetir consultas | `Client._cache_read/_cache_write` | `vulns.py:120-143` | Caché en disco de 24 h (`~/.cache/iot_scanner`, `--cve-cache`); si falla, se sigue sin caché |
+| Privacidad: qué sale a internet | `lookup_all()` | `vulns.py:315-339` | Solo el modelo (lo anuncia el propio dispositivo a toda la red) y nombres CPE; nunca MAC, IP ni hostname. User-Agent genérico |
+| Lo que llega de internet tampoco es de fiar | `_http_get_json()`, `_summary()` | `vulns.py:72-78`, `:256-259` | Solo `https`, timeout de 30 s, como mucho 32 MB; la descripción se limpia de caracteres de control y se recorta a 160 |
+| Sin red no se rompe nada | `Client.get()` | `vulns.py:95-110` | Un error de red o un JSON roto cuenta como error y se avisa; el informe indica que puede estar incompleto |
+
+### En el informe
+
+| Teoría | Código | Dónde | Qué hace |
+|---|---|---|---|
+| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:94-99`, `:235-252` | Sección "Vulnerabilidades conocidas", con certeza, KEV y cuántos se descartaron por versión |
+| Solo un CVE tan seguro y urgente como un Telnet abierto se convierte en alerta | bucle `for c in dev.cves` | `report.py:85-90` | Alerta ALTA si está en **KEV** y la certeza es **modelo+firmware**; sin puerto (`-`) |
+| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:29`, `report.py:280-281` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
+| GUI | pestaña CVE, casilla | `gui.py:209-212`, `:256-263`, `:466-472` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
+| CLI | `--cve`, `--cve-cache` | `net_device_scanner.py:65-68`, `:124-125` | Se busca después de clasificar |
+
+### Ejemplo con datos reales (NVD, 2026-11-16)
+
+| Dispositivo | Qué sabemos | Resultado |
+|---|---|---|
+| Brother HL-L2350DW | modelo, sin versión | 3 CVE (CVE-2019-13192/13193/13194), certeza **modelo** |
+| Chromecast | modelo (`md=Chromecast`), sin versión (`ve` es el protocolo) | 6 CVE, certeza **modelo** |
+| Sensor ESPHome 2024.6.1 | software + versión | 3 CVE de ESPHome, **los 3 descartados**: la versión está fuera de los rangos |
+| (prueba) ESPHome 2024.1.0 | software + versión | CVE-2024-27287 (rango 2023.12.9–2024.2.2), certeza **modelo+firmware** |
+
+El ejemplo de ESPHome muestra para qué sirve la versión: sin ella, se habrían listado 3 CVE que
+no le afectan.
+
+**Limitaciones:**
+- Solo se encuentran dispositivos cuyo modelo esté en el diccionario CPE con un nombre parecido.
+- La comparación de versiones solo mira los números (`1.0-beta` y `1.0` se ven iguales).
+- Con más de 200 CVE por producto solo se ven los primeros (se avisa).
+- "Certeza modelo" significa "este modelo ha tenido este fallo", no "este equipo lo tiene":
+  puede que ya esté actualizado.
 
 ---
 

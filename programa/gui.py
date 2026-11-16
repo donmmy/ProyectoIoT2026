@@ -82,9 +82,11 @@ def list_interfaces():
     return items
 
 
-def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=None):
+def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=None, cve=False):
     """Traduce las opciones de la ventana a argumentos de la CLI."""
     argv = ["-t", str(int(seconds)), "--arp-timeout", str(int(arp_timeout))]
+    if cve:
+        argv.append("--cve")
     if mode == "pcap":
         if not pcap:
             raise ValueError("Elige un fichero .pcap")
@@ -109,7 +111,7 @@ def run_analysis(argv, stop_event=None):
     return devices, report.build_summary(devices, meta)
 
 
-SUMMARY_META_KEYS = ("mode", "pcap", "iface", "network", "listen_seconds")
+SUMMARY_META_KEYS = ("mode", "pcap", "iface", "network", "listen_seconds", "cve_search")
 
 
 class _QueueLogHandler(logging.Handler):
@@ -143,6 +145,7 @@ class ScannerApp(ttk.Frame):
         self.started_at = 0
         self.expected = 0
         self.anonymize = tk.BooleanVar(value=False)
+        self.cve = tk.BooleanVar(value=False)
         self.filter_text = tk.StringVar()
         self._all_rows = []   # iids de la tabla, para el filtro
         setup_logging(extra_handler=_QueueLogHandler(self.queue))
@@ -205,6 +208,9 @@ class ScannerApp(ttk.Frame):
         self.stop_btn.grid(row=3, column=6, sticky="e", padx=4)
         box.columnconfigure(3, weight=1)
 
+        ttk.Checkbutton(box, text="Buscar CVE conocidos (NVD + CISA KEV; necesita internet, solo envía modelos)",
+                        variable=self.cve).grid(row=5, column=0, columnspan=7, sticky="w", pady=(4, 0))
+
         self.admin_note = ttk.Label(box, foreground="#a15c00")
         self.admin_note.grid(row=4, column=0, columnspan=7, sticky="w", pady=(4, 0))
 
@@ -218,9 +224,10 @@ class ScannerApp(ttk.Frame):
         pane = ttk.PanedWindow(dev_tab, orient="vertical")
         pane.pack(fill="both", expand=True)
 
-        cols = ("ip", "mac", "vendor", "hostname", "tipo", "conf", "pkts", "alertas")
-        heads = ("IP", "MAC", "Fabricante", "Hostname", "Tipo probable", "Confianza", "Paquetes", "Alertas")
-        widths = (110, 130, 170, 140, 250, 80, 70, 60)
+        cols = ("ip", "mac", "vendor", "hostname", "tipo", "conf", "pkts", "alertas", "cves")
+        heads = ("IP", "MAC", "Fabricante", "Hostname", "Tipo probable", "Confianza", "Paquetes",
+                 "Alertas", "CVE")
+        widths = (110, 130, 170, 140, 250, 80, 70, 60, 50)
         table_frame = ttk.Frame(pane)
         bar = ttk.Frame(table_frame)
         bar.pack(fill="x", pady=(0, 4))
@@ -245,6 +252,15 @@ class ScannerApp(ttk.Frame):
                                       (80, 130, 140, 60, 600))
         for sev, color in SEVERITY_COLORS.items():
             self.alerts.tag_configure(sev, background=color)
+
+        # CVE: aparte de las alertas (hipótesis sobre el modelo, no un hecho observado)
+        cve_tab = ttk.Frame(self.tabs)
+        self.tabs.add(cve_tab, text="CVE")
+        self.cve_tree = self._make_tree(
+            cve_tab, ("id", "cvss", "kev", "cert", "dev", "prod", "desc"),
+            ("CVE", "CVSS", "KEV", "Certeza", "Dispositivo", "Producto", "Descripción"),
+            (130, 50, 45, 110, 120, 150, 500))
+        self.cve_tree.tag_configure("kev", background=SEVERITY_COLORS["ALTA"])
 
         # Resumen y registro
         self.summary_text = self._make_text_tab("Resumen")
@@ -327,7 +343,8 @@ class ScannerApp(ttk.Frame):
         mode = self.mode.get()
         try:
             argv = build_argv(mode, self._selected_iface(), self.network.get().strip() or None,
-                              self.seconds.get(), self.arp_timeout.get(), self.pcap.get().strip() or None)
+                              self.seconds.get(), self.arp_timeout.get(), self.pcap.get().strip() or None,
+                              cve=self.cve.get())
         except (ValueError, tk.TclError) as e:
             messagebox.showerror("Opciones no válidas", str(e) or "Revisa los números introducidos.")
             return
@@ -341,7 +358,7 @@ class ScannerApp(ttk.Frame):
         self.json_btn.configure(state="disabled")
         self.csv_btn.configure(state="disabled")
         self.status.configure(text="Analizando…")
-        self.tabs.select(3)  # Registro
+        self.tabs.select(4)  # Registro
         self.started_at = time.time()
         self.expected = 0 if mode == "pcap" else (
             self.arp_timeout.get() + (0 if mode == "arp-only" else self.seconds.get()))
@@ -416,7 +433,7 @@ class ScannerApp(ttk.Frame):
     # ---------------- resultados ----------------
 
     def _clear_results(self):
-        for t in (self.tree, self.alerts):
+        for t in (self.tree, self.alerts, self.cve_tree):
             t.delete(*t.get_children())
         for t in (self.detail, self.summary_text, self.log):
             self._set_text(t, "")
@@ -435,15 +452,24 @@ class ScannerApp(ttk.Frame):
             self.tree.insert("", "end", iid=d.mac, values=(
                 ip, d.mac, d.vendor, d.hostname or "-",
                 best.get("label", "Sin identificar"), best.get("confidence", "-"),
-                d.packet_count, alerts_by_mac.get(d.mac, 0) or ""))
+                d.packet_count, alerts_by_mac.get(d.mac, 0) or "", len(d.cves) or ""))
             self._all_rows.append(d.mac)
         self._apply_filter()
 
         self.alerts.delete(*self.alerts.get_children())
         for a in summary["alerts"]:
             self.alerts.insert("", "end", tags=(a["severity"],),
-                               values=(a["severity"], a["device"], a["mac"], a["port"], a["message"]))
+                               values=(a["severity"], a["device"], a["mac"],
+                                       "-" if a["port"] is None else a["port"], a["message"]))
         self.tabs.tab(1, text=f"Alertas ({len(summary['alerts'])})")
+
+        self.cve_tree.delete(*self.cve_tree.get_children())
+        for c in summary.get("cves", []):
+            self.cve_tree.insert("", "end", tags=("kev",) if c["kev"] else (), values=(
+                c["id"], "-" if c["cvss"] is None else c["cvss"], "sí" if c["kev"] else "",
+                c["certainty"], c["device"], c["product"], c["summary"]))
+        searched = "cve_search" in summary
+        self.tabs.tab(2, text=f"CVE ({len(summary.get('cves', []))})" if searched else "CVE (no buscados)")
 
         self._set_text(self.summary_text, self._summary_text(summary))
 
@@ -463,6 +489,15 @@ class ScannerApp(ttk.Frame):
             n = sum(1 for a in s["alerts"] if a["severity"] == sev)
             if n:
                 lines.append(f"   {sev:<6} {n}")
+        stats = s.get("cve_search")
+        if stats:
+            lines += ["", f"CVE conocidos: {len(s.get('cves', []))} ({stats['kev']} en CISA KEV)",
+                      f"   buscados {stats['searched']} dispositivos con modelo; {stats['without_model']} sin modelo",
+                      f"   {stats['discarded_by_version']} descartados porque la versión anunciada no es vulnerable"]
+            if stats.get("errors"):
+                lines.append(f"   [!] {stats['errors']} consultas fallaron: resultado incompleto")
+        else:
+            lines += ["", "CVE conocidos: no buscados (marca «Buscar CVE conocidos»)"]
         lines += ["", "La identificación es heurística: es una hipótesis para el analista, no un veredicto."]
         return "\n".join(lines)
 
@@ -492,6 +527,11 @@ class ScannerApp(ttk.Frame):
             values = d.get(key)
             if values:
                 lines.append(f"{title}: {', '.join(map(str, values))}")
+        if dev.cves:
+            lines.append("CVE conocidos:")
+            lines += [f"  • {c['id']}  CVSS {c['cvss']}  certeza {c['certainty']}"
+                      f"{'  [KEV: explotado activamente]' if c['kev'] else ''}\n      {c['summary']}"
+                      for c in dev.cves]
         self._set_text(self.detail, "\n".join(lines))
 
     def _sort_tree(self, tree, col, reverse):
