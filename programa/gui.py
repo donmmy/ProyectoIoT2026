@@ -261,6 +261,7 @@ class ScannerApp(ttk.Frame):
             ("CVE", "CVSS", "KEV", "Certeza", "Dispositivo", "Producto", "Descripción"),
             (130, 50, 45, 110, 120, 150, 500))
         self.cve_tree.tag_configure("kev", background=SEVERITY_COLORS["ALTA"])
+        self.cve_tree.tag_configure("guess", foreground="#777")   # nivel fabricante: suposición
 
         # Resumen y registro
         self.summary_text = self._make_text_tab("Resumen")
@@ -465,9 +466,10 @@ class ScannerApp(ttk.Frame):
 
         self.cve_tree.delete(*self.cve_tree.get_children())
         for c in summary.get("cves", []):
-            self.cve_tree.insert("", "end", tags=("kev",) if c["kev"] else (), values=(
+            tags = ("kev",) if c["kev"] else ("guess",) if c["certainty"] == "fabricante" else ()
+            self.cve_tree.insert("", "end", tags=tags, values=(
                 c["id"], "-" if c["cvss"] is None else c["cvss"], "sí" if c["kev"] else "",
-                c["certainty"], c["device"], c["product"], c["summary"]))
+                report.certainty_label(c["certainty"]), c["device"], c["product"], c["summary"]))
         searched = "cve_search" in summary
         self.tabs.tab(2, text=f"CVE ({len(summary.get('cves', []))})" if searched else "CVE (no buscados)")
 
@@ -492,7 +494,9 @@ class ScannerApp(ttk.Frame):
         stats = s.get("cve_search")
         if stats:
             lines += ["", f"CVE conocidos: {len(s.get('cves', []))} ({stats['kev']} en CISA KEV)",
-                      f"   buscados {stats['searched']} dispositivos con modelo; {stats['without_model']} sin modelo",
+                      f"   por modelo: {stats['searched']} dispositivos; solo por fabricante: {stats['by_vendor']}"
+                      " (suposición: CVE recientes de su hardware)",
+                      f"   sin datos para buscar: {stats['not_searched']}",
                       f"   {stats['discarded_by_version']} descartados porque la versión anunciada no es vulnerable"]
             if stats.get("errors"):
                 lines.append(f"   [!] {stats['errors']} consultas fallaron: resultado incompleto")
@@ -529,7 +533,7 @@ class ScannerApp(ttk.Frame):
                 lines.append(f"{title}: {', '.join(map(str, values))}")
         if dev.cves:
             lines.append("CVE conocidos:")
-            lines += [f"  • {c['id']}  CVSS {c['cvss']}  certeza {c['certainty']}"
+            lines += [f"  • {c['id']}  CVSS {c['cvss']}  certeza {report.certainty_label(c['certainty'])}"
                       f"{'  [KEV: explotado activamente]' if c['kev'] else ''}\n      {c['summary']}"
                       for c in dev.cves]
         self._set_text(self.detail, "\n".join(lines))

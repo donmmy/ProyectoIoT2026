@@ -17,6 +17,7 @@ depende de IA en tiempo de ejecución.
 | 2026-10-26 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Mejoras de calidad y privacidad | Qwen propuso una lista de mejoras; el autor eligió 8 y Claude las implementó con ajustes: reglas en `rules.json` (JSON en vez de YAML), logging, `--anonymize` (HMAC con clave aleatoria en vez de hash con sal), `--arp-interval` (0,01 s configurable en vez de 0,05 s fijo), `requirements.lock`, CI de GitHub Actions con cobertura, cobertura de reglas 15/15 y filtro en la GUI; 13 tests nuevos. Descartadas: `mypy` y resultados en tiempo real. |
 | 2026-11-16 | Claude (Claude Code) | Hito 2 (TXT de mDNS) | Lectura de registros TXT: modelo y versión de firmware como base para la futura búsqueda de CVE; lista blanca de claves al anonimizar; 5 tests nuevos. Pedido por el autor ("pues añadimos la lectura de registros TXT") tras analizar con Claude qué información de firmware dejan escapar los IoT. |
 | 2026-11-16 | Claude (Claude Code) | Búsqueda de CVE (`--cve`) | `vulns.py`: NVD por CPE + CISA KEV con caché, ritmo de NVD y nivel de certeza (modelo / modelo+firmware); CVE aparte de las alertas en consola, JSON, CSV y GUI; 19 tests nuevos con NVD/KEV simulados. Diseño propuesto por Claude y aceptado por el autor ("si me parece mejor separarlo"); Claude cambió el plan inicial al comprobar que buscar en KEV por fabricante solo daba ruido. |
+| 2026-11-16 | Claude (Claude Code) | `--cve`: nivel fabricante y ejemplos | Clave de NVD en un fichero ignorado por git; nivel "fabricante (suposición)" con CVE recientes de hardware de la marca; `ejemplos/` regenerado; 10 tests nuevos. Pedido por el autor ("añade también los del nivel 2, con suposiciones que sean vulnerabilidades recientes"); Claude lo limitó a hardware (`h:`) y 2 años tras comprobar que `o:` daba cientos de CVE de Android. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -65,7 +66,7 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 79 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 89 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la

@@ -95,8 +95,14 @@ def build_cve_list(devices):
     """Todos los CVE en una lista plana (para la consola, la GUI y el resumen)."""
     rows = [{"device": dev.ip or dev.mac, "mac": dev.mac, **c}
             for dev in devices.values() for c in dev.cves]
-    rows.sort(key=lambda r: (not r["kev"], r["certainty"] != "modelo+firmware", -(r["cvss"] or 0)))
+    rank = {"modelo+firmware": 0, "modelo": 1, "fabricante": 2}
+    rows.sort(key=lambda r: (rank.get(r["certainty"], 3), not r["kev"], -(r["cvss"] or 0)))
     return rows
+
+
+def certainty_label(certainty):
+    """El nivel fabricante se muestra siempre como lo que es: una suposición."""
+    return "fabricante (suposición)" if certainty == "fabricante" else certainty
 
 
 def build_summary(devices, meta=None):
@@ -238,15 +244,17 @@ def print_cves(summary):
         print("\nVulnerabilidades conocidas: no buscadas (usa --cve; necesita internet)")
         return
     cves = summary.get("cves", [])
-    print(f"\nVulnerabilidades conocidas ({len(cves)}, de NVD; certeza modelo+firmware > modelo):")
+    print(f"\nVulnerabilidades conocidas ({len(cves)}, de NVD; certeza modelo+firmware > modelo > fabricante):")
     if not cves:
         print("   (ninguna)")
     for c in cves:
         kev = "KEV" if c["kev"] else ""
         score = c["cvss"] if c["cvss"] is not None else "-"
-        print(f"   {c['id']:<16} {score!s:<5} {kev:<4} {c['certainty']:<16} {c['device']:<16} {c['product']}")
-    print(f"   Buscados {stats['searched']} dispositivos con modelo; {stats['without_model']} sin modelo "
-          f"no se buscan; {stats['discarded_by_version']} CVE descartados por versión.")
+        print(f"   {c['id']:<16} {score!s:<5} {kev:<4} {certainty_label(c['certainty']):<24} "
+              f"{c['device']:<16} {c['product']}")
+    print(f"   Por modelo: {stats['searched']} dispositivos; solo por fabricante: {stats['by_vendor']} "
+          f"(CVE recientes de su hardware, no confirmados); sin datos: {stats['not_searched']}; "
+          f"{stats['discarded_by_version']} CVE descartados por versión.")
     if stats.get("errors"):
         print(f"   [!] {stats['errors']} consultas fallaron: el resultado puede estar incompleto.")
 
@@ -278,7 +286,7 @@ def _csv_safe(value):
 
 
 def _cve_cell(c):
-    return f"{c['id']} ({c['cvss']}, {c['certainty']}{', KEV' if c['kev'] else ''})"
+    return f"{c['id']} ({c['cvss']}, {certainty_label(c['certainty'])}{', KEV' if c['kev'] else ''})"
 
 
 def export_csv(devices, path):

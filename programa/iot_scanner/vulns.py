@@ -18,10 +18,17 @@ Por cada dispositivo:
    - Si NVD da rango y la versión anunciada queda fuera, el CVE se descarta.
 4. KEV marca los CVE explotados activamente. KEV no se usa para buscar por fabricante:
    "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un
-   Chromecast. Por eso un dispositivo del que solo sabemos el fabricante (OUI) no se busca.
+   Chromecast.
+5. Nivel "fabricante" (una suposición): si del dispositivo solo sabemos el fabricante (OUI),
+   o su modelo no está en el diccionario CPE, se listan los CVE **recientes** (2 años) de
+   **hardware** de ese fabricante (`cpe:2.3:h:fabricante`), como mucho 5 y los más graves
+   primero. No dicen que este aparato sea vulnerable, sino "este fabricante ha tenido estos
+   fallos hace poco en sus equipos". Se pide solo hardware porque `o:` mete el sistema
+   operativo (Google: cientos de CVE de Android en cuatro meses). Nunca generan alertas.
 
 Privacidad: a internet solo salen el modelo (texto que el propio dispositivo anuncia a toda
-la red) y nombres CPE; nunca MAC, IP, hostname ni nombres que ponga el usuario.
+la red), el nombre del fabricante y nombres CPE; nunca MAC, IP, hostname ni nombres que
+ponga el usuario.
 
 Las respuestas se guardan en una caché local (24 h) para no repetir consultas: NVD sin
 clave admite 5 peticiones cada 30 s; con clave, 50. La clave se lee de la variable
@@ -65,7 +72,23 @@ SERVICE_PRODUCTS = {
 # Palabras del modelo que no están en los nombres CPE y harían fallar la búsqueda
 MODEL_NOISE = {"series", "printer", "inc", "ltd", "co"}
 
-CERTAINTY_ORDER = {"modelo+firmware": 0, "modelo": 1}
+CERTAINTY_ORDER = {"modelo+firmware": 0, "modelo": 1, "fabricante": 2}
+
+# Nivel fabricante: solo lo reciente y lo más grave, para que sea una pista y no una lista
+VENDOR_RECENT_DAYS = 730
+VENDOR_MAX_CVES = 5
+
+# Palabras del nombre OUI que no son la marca ("Hangzhou Hikvision Digital Technology" -> hikvision)
+VENDOR_NOISE = {
+    "inc", "incorporated", "co", "ltd", "llc", "corp", "corporation", "company", "limited", "gmbh",
+    "ag", "sa", "srl", "bv", "plc", "the", "and", "of", "technology", "technologies", "tech",
+    "digital", "electronics", "electronic", "electric", "communications", "communication",
+    "network", "networks", "systems", "system", "smart", "industries", "industrial",
+    "international", "group", "holdings", "trading", "hangzhou", "shenzhen", "guangzhou", "beijing",
+    "shanghai", "xiamen", "zhejiang", "dongguan", "zhuhai", "suzhou", "nanjing", "wuhan", "chengdu",
+    "taiwan", "china", "japan", "korea",
+}
+UNKNOWN_VENDORS = ("desconocido", "MAC aleatoria")
 
 
 # ----------------------------------------------------------------------
@@ -292,6 +315,32 @@ def product_cves(vendor, product, has_firmware_cpe, client):
     return cves
 
 
+def cpe_vendor(oui_vendor):
+    """Marca del nombre OUI en minúsculas, como en CPE; None si no hay fabricante útil."""
+    if not oui_vendor or oui_vendor.startswith(UNKNOWN_VENDORS):
+        return None
+    for word in re.findall(r"[a-z0-9]+", oui_vendor.lower()):
+        if len(word) >= 3 and not word.isdigit() and word not in VENDOR_NOISE:
+            return word
+    return None
+
+
+def vendor_recent_cves(vendor, client, now=None):
+    """CVE recientes de hardware del fabricante, los más graves primero: [(id, cve)]."""
+    query = urllib.parse.urlencode({"virtualMatchString": f"cpe:2.3:h:{vendor}",
+                                    "resultsPerPage": CVES_PER_PAGE})
+    data = client.get(f"{NVD_CVES}?{query}") or {}
+    if data.get("totalResults", 0) > CVES_PER_PAGE:
+        log.warning("%s tiene más de %d CVE de hardware; solo se miran los primeros", vendor, CVES_PER_PAGE)
+    now = now or time.time()
+    since = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now - VENDOR_RECENT_DAYS * 86400))
+    recent = [v.get("cve", {}) for v in data.get("vulnerabilities", [])]
+    recent = [c for c in recent if c.get("id") and c.get("published", "") >= since]
+    recent.sort(key=lambda c: c.get("published", ""), reverse=True)        # a igual CVSS, el más nuevo
+    recent.sort(key=lambda c: -(_cvss(c.get("metrics", {}))[0] or 0))
+    return [(c["id"], c) for c in recent[:VENDOR_MAX_CVES]]
+
+
 def load_kev(client):
     """IDs del catálogo KEV, o un conjunto vacío si no se pudo descargar."""
     data = client.get(KEV_URL, nvd=False) or {}
@@ -302,12 +351,21 @@ def load_kev(client):
 # Todo junto
 # ----------------------------------------------------------------------
 
-def lookup_device(dev, client, kev, memo=None):
-    """Rellena dev.cves. Devuelve cuántos CVE descartó la versión anunciada."""
+def _entry(cve_id, cve, kev, certainty, product):
+    score, severity = _cvss(cve.get("metrics", {}))
+    return {"id": cve_id, "cvss": score, "severity": severity, "kev": cve_id in kev,
+            "certainty": certainty, "product": product, "published": cve.get("published", "")[:10],
+            "summary": _summary(cve)}
+
+
+def lookup_device(dev, client, kev, memo=None, now=None):
+    """Rellena dev.cves. Devuelve (nivel de la búsqueda, CVE descartados por versión);
+    nivel = "modelo", "fabricante" o None si no había nada que buscar."""
     memo = {} if memo is None else memo
-    products = device_products(dev, client)
-    found, discarded = {}, 0
+    products = device_products(dev, client) if dev.models or dev.mdns_services else {}
+    found, discarded, level = {}, 0, None
     for (vendor, product), has_fw in sorted(products.items()):
+        level = "modelo"
         if (vendor, product) not in memo:
             memo[(vendor, product)] = product_cves(vendor, product, has_fw, client)
         for cve_id, cve in memo[(vendor, product)].items():
@@ -315,40 +373,51 @@ def lookup_device(dev, client, kev, memo=None):
             if certainty is None:
                 discarded += 1
                 continue
-            score, severity = _cvss(cve.get("metrics", {}))
             prev = found.get(cve_id)
             if prev and CERTAINTY_ORDER[prev["certainty"]] <= CERTAINTY_ORDER[certainty]:
                 continue
-            found[cve_id] = {"id": cve_id, "cvss": score, "severity": severity,
-                             "kev": cve_id in kev, "certainty": certainty,
-                             "product": f"{vendor}:{product}", "summary": _summary(cve)}
+            found[cve_id] = _entry(cve_id, cve, kev, certainty, f"{vendor}:{product}")
+
+    # Sin producto CPE: suposición con lo reciente del fabricante
+    vendor = cpe_vendor(dev.vendor) if level is None else None
+    if vendor:
+        level = "fabricante"
+        if ("vendor", vendor) not in memo:
+            memo[("vendor", vendor)] = vendor_recent_cves(vendor, client, now)
+        for cve_id, cve in memo[("vendor", vendor)]:
+            found[cve_id] = _entry(cve_id, cve, kev, "fabricante", f"{vendor}:* (hardware)")
+
     dev.cves = sorted(found.values(), key=lambda c: (not c["kev"], CERTAINTY_ORDER[c["certainty"]],
                                                      -(c["cvss"] or 0), c["id"]))
-    return products, discarded
+    return level, discarded
 
 
-def lookup_all(devices, client=None):
-    """Busca CVE para todos los dispositivos con modelo o software reconocido."""
+def lookup_all(devices, client=None, now=None):
+    """Busca CVE para todos los dispositivos: por modelo o software y, si no, por fabricante."""
     client = client or Client()
-    log.info("Buscando CVE en NVD y CISA KEV (solo se envían modelos, nunca MAC/IP). %s",
+    log.info("Buscando CVE en NVD y CISA KEV (solo se envían modelos y fabricantes, nunca MAC/IP). %s",
              "Con clave de NVD." if client.api_key else
              f"Sin clave de NVD cada consulta espera {NVD_PAUSE:.0f} s (ver nvd_api_key.txt).")
     kev = load_kev(client)
-    stats = {"searched": 0, "without_model": 0, "no_cpe": 0, "cves": 0, "kev": 0,
+    stats = {"searched": 0, "by_vendor": 0, "not_searched": 0, "no_cpe": 0, "cves": 0, "kev": 0,
              "discarded_by_version": 0, "requests": 0, "errors": 0, "kev_loaded": bool(kev)}
     memo = {}
     for dev in devices.values():
-        if not dev.models and not (dev.mdns_services & SERVICE_PRODUCTS.keys()):
-            stats["without_model"] += 1
-            continue
-        stats["searched"] += 1
-        products, discarded = lookup_device(dev, client, kev, memo)
-        if not products:
+        has_model = bool(dev.models or (dev.mdns_services & SERVICE_PRODUCTS.keys()))
+        level, discarded = lookup_device(dev, client, kev, memo, now)
+        if level == "modelo":
+            stats["searched"] += 1
+        elif level == "fabricante":
+            stats["by_vendor"] += 1
+        else:
+            stats["not_searched"] += 1
+        if has_model and level != "modelo":
             stats["no_cpe"] += 1
         stats["discarded_by_version"] += discarded
         stats["cves"] += len(dev.cves)
         stats["kev"] += sum(1 for c in dev.cves if c["kev"])
     stats["requests"], stats["errors"] = client.requests, client.errors
-    log.info("CVE: %d encontrados (%d en KEV) en %d dispositivos con modelo; %d sin modelo no se buscan.",
-             stats["cves"], stats["kev"], stats["searched"], stats["without_model"])
+    log.info("CVE: %d encontrados (%d en KEV): %d dispositivos por modelo, %d solo por fabricante "
+             "(suposición), %d sin datos para buscar.",
+             stats["cves"], stats["kev"], stats["searched"], stats["by_vendor"], stats["not_searched"])
     return stats

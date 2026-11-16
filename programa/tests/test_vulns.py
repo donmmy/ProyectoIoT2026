@@ -5,6 +5,7 @@ Los identificadores CVE-1999-9xxx son inventados para estos tests.
 
 import csv
 import json
+import time
 import urllib.parse
 
 import pytest
@@ -17,8 +18,12 @@ from tests import lab_packets as lab
 PRINTER_MODEL = "Brother HL-L2350DW series"
 
 
-def _cve(cve_id, criteria, score=7.5, **ranges):
-    return {"id": cve_id,
+def _days_ago(days):
+    return time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime(time.time() - days * 86400))
+
+
+def _cve(cve_id, criteria, score=7.5, published=None, **ranges):
+    return {"id": cve_id, "published": published or _days_ago(30),
             "descriptions": [{"lang": "en", "value": "Fake\x07 bug " + "x" * 300}],
             "metrics": {"cvssMetricV31": [{"type": "Primary",
                                            "cvssData": {"baseScore": score, "baseSeverity": "HIGH"}}]},
@@ -28,6 +33,7 @@ def _cve(cve_id, criteria, score=7.5, **ranges):
 
 ESPHOME = "cpe:2.3:a:esphome:esphome:*:*:*:*:*:*:*:*"
 PRINTER_FW = "cpe:2.3:o:brother:hl-l2350dw_firmware:-:*:*:*:*:*:*:*"
+HIK_FW = "cpe:2.3:o:hikvision:ds-2cd2042wd_firmware:-:*:*:*:*:*:*:*"
 CVES = {
     "cpe:2.3:*:esphome:esphome": [
         # 2024.6.1 (la del laboratorio) cae dentro: certeza modelo+firmware, y está en KEV
@@ -39,6 +45,12 @@ CVES = {
     ],
     "cpe:2.3:*:brother:hl-l2350dw": [_cve("CVE-1999-9101", PRINTER_FW, 9.8)],
     "cpe:2.3:o:brother:hl-l2350dw_firmware": [_cve("CVE-1999-9101", PRINTER_FW, 9.8)],
+    # Nivel fabricante: 6 CVE recientes de hardware Hikvision (se ven 5) y uno antiguo (no se ve)
+    "cpe:2.3:h:hikvision": [
+        _cve(f"CVE-1999-92{i}", HIK_FW, score, published=_days_ago(days))
+        for i, (score, days) in enumerate([(5.0, 10), (8.8, 100), (6.1, 20), (8.8, 50),
+                                           (4.3, 300), (7.2, 600), (9.9, 4000)])
+    ],
 }
 CPES = {
     "brother hl-l2350dw": [
@@ -60,7 +72,7 @@ class FakeInternet:
         if self.fail:
             raise OSError("sin red")
         if url == vulns.KEV_URL:
-            return {"vulnerabilities": [{"cveID": "CVE-1999-9001"}, {"cveID": "CVE-1999-9101x"}]}
+            return {"vulnerabilities": [{"cveID": i} for i in ("CVE-1999-9001", "CVE-1999-9101x", "CVE-1999-921")]}
         q = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlsplit(url).query).items()}
         if url.startswith(vulns.NVD_CPES):
             return {"products": [{"cpe": {"cpeName": n, "deprecated": False}}
@@ -84,6 +96,7 @@ def devices():
         s.handle_packet(pkt)
     s.devices["printer"] = Device(mac="00:80:77:00:00:14", ip="192.168.1.114",
                                   hostname="Brother-Despacho", models={PRINTER_MODEL})
+    s.devices["movil"] = Device(mac="da:00:00:00:00:99", vendor="MAC aleatoria/privada")
     heuristics.classify_all(s.devices)
     return s.devices
 
@@ -107,10 +120,43 @@ def test_certainty_levels_and_version_discard(devices):
     assert _ids(printer) == ["CVE-1999-9101"]
     assert printer.cves[0]["certainty"] == "modelo" and printer.cves[0]["product"] == "brother:hl-l2350dw"
 
-    # Chromecast tiene modelo pero el diccionario simulado no lo conoce; la cámara no anuncia modelo
+    # La cámara no anuncia modelo: suposición por fabricante con lo reciente de su hardware.
+    # Los 5 más graves de los últimos 2 años (a igual CVSS, el más nuevo); el de hace 11 años no
+    cam = devices[lab.CAM]
+    # (921 va primero por estar en KEV; 924, el sexto, y 926, el antiguo, no salen)
+    assert _ids(cam) == ["CVE-1999-921", "CVE-1999-923", "CVE-1999-925", "CVE-1999-922", "CVE-1999-920"]
+    # Empate a 8.8 entre 921 y 923: va antes el más nuevo (923)
+    assert vulns.vendor_recent_cves("hikvision", _client(FakeInternet()))[0][0] == "CVE-1999-923"
+    assert {c["certainty"] for c in cam.cves} == {"fabricante"}
+    assert cam.cves[0]["product"] == "hikvision:* (hardware)" and cam.cves[0]["published"]
+
+    # Chromecast tiene modelo pero el diccionario simulado no lo conoce: pasa a fabricante (google),
+    # que aquí no tiene CVE; la MAC aleatoria no tiene fabricante y no se busca
     assert devices[lab.CAST].models and not devices[lab.CAST].cves
-    assert stats["no_cpe"] >= 1 and stats["without_model"] >= 1
-    assert stats["cves"] == 3 and stats["kev"] == 1 and stats["kev_loaded"]
+    assert not devices["movil"].cves
+    assert stats["searched"] == 2 and stats["no_cpe"] == 1 and stats["not_searched"] == 1
+    assert stats["by_vendor"] == len(devices) - 3
+    assert stats["cves"] == 8 and stats["kev"] == 2 and stats["kev_loaded"]
+
+
+def test_vendor_level_only_recent(devices):
+    future = time.time() + 10 * 365 * 86400        # dentro de 10 años, nada es reciente
+    vulns.lookup_all(devices, _client(FakeInternet()), now=future)
+    assert not devices[lab.CAM].cves and devices[lab.SENSOR].cves
+
+
+@pytest.mark.parametrize("oui, expected", [
+    ("Hangzhou Hikvision Digital Technology Co.,Ltd.", "hikvision"),
+    ("Tuya Smart Inc.", "tuya"),
+    ("Google, Inc.", "google"),
+    ("Raspberry Pi Trading Ltd", "raspberry"),
+    ("Co., Ltd.", None),
+    ("desconocido", None),
+    ("MAC aleatoria/privada", None),
+    ("", None),
+])
+def test_cpe_vendor(oui, expected):
+    assert vulns.cpe_vendor(oui) == expected
 
 
 def test_similar_products_are_not_matched():
@@ -133,7 +179,9 @@ def test_only_models_leave_the_machine(devices):
 def test_kev_in_range_becomes_alert_and_reaches_reports(devices, tmp_path, capsys):
     stats = vulns.lookup_all(devices, _client(FakeInternet()))
     alerts = [a for a in report.build_alerts(devices) if a["port"] is None]
-    # Solo el CVE en KEV con certeza modelo+firmware; el de la impresora (modelo) no es alerta
+    # Solo el CVE en KEV con certeza modelo+firmware. El de la impresora (modelo) no es alerta,
+    # ni el de la cámara aunque esté en KEV: es una suposición por fabricante
+    assert any(c["kev"] for c in devices[lab.CAM].cves)
     assert [(a["mac"], a["severity"]) for a in alerts] == [(lab.SENSOR, "ALTA")]
     assert "CVE-1999-9001" in alerts[0]["message"]
 
@@ -141,7 +189,10 @@ def test_kev_in_range_becomes_alert_and_reaches_reports(devices, tmp_path, capsy
     assert [c["id"] for c in summary["cves"]][0] == "CVE-1999-9001"
     report.print_summary(summary)
     out = capsys.readouterr().out
-    assert "Vulnerabilidades conocidas (3" in out and "KEV" in out and "puerto -" in out
+    assert "Vulnerabilidades conocidas (8" in out and "KEV" in out and "puerto -" in out
+    assert "fabricante (suposición)" in out and "solo por fabricante: " in out
+    # Orden: primero lo más seguro; la suposición por fabricante, al final aunque esté en KEV
+    assert [c["certainty"] for c in summary["cves"]][-1] == "fabricante"
 
     jp, cp = tmp_path / "r.json", tmp_path / "r.csv"
     report.export_json(devices, summary, jp)
@@ -274,6 +325,6 @@ def test_cli_with_and_without_cve(tmp_path, capsys, monkeypatch):
                                     "-o", str(out_json)]) == 0
     assert used["cache_dir"] == str(tmp_path / "c")
     data = json.loads(out_json.read_text(encoding="utf-8"))
-    assert data["summary"]["cve_search"]["cves"] == 2
+    assert data["summary"]["cve_search"]["by_vendor"] >= 1
     sensor = next(d for d in data["devices"] if d["mac"] == lab.SENSOR)
     assert [c["id"] for c in sensor["cves"]] == ["CVE-1999-9001", "CVE-1999-9003"]

@@ -217,5 +217,6 @@ def extra_rule_packets():
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else str(DEFAULT_PCAP)
-    wrpcap(out, lab_packets())
+    # El laboratorio y un dispositivo por cada regla restante (impresora con TXT, NAS...)
+    wrpcap(out, lab_packets() + extra_rule_packets())
     print(f"Captura de ejemplo escrita en {out}")

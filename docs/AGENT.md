@@ -35,7 +35,7 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **79 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **89 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -122,8 +122,10 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   en el modelo; software por servicio mDNS (`SERVICE_PRODUCTS`: ESPHome). Certeza
   **modelo+firmware** (versión en el rango), **modelo** (sin versión o sin rango) o descartado
   (versión fuera del rango). KEV solo **marca**: buscar en KEV por fabricante da ruido (Google →
-  decenas de Chromium), así que sin modelo no se busca. Alerta ALTA solo si KEV +
-  modelo+firmware. Solo salen a internet modelos y nombres CPE. Caché de 24 h en
+  decenas de Chromium). Nivel **fabricante (suposición)**, añadido a petición del autor: sin
+  modelo (o sin CPE para él), CVE de **hardware** (`cpe:2.3:h:marca`) de los últimos 2 años, 5
+  como mucho; marca sacada del OUI con `cpe_vendor()`. Alerta ALTA solo si KEV +
+  modelo+firmware (el nivel fabricante nunca alerta). Solo salen a internet modelos, fabricantes y nombres CPE. Caché de 24 h en
   `~/.cache/iot_scanner`; 6 s entre consultas a NVD (0,6 s con clave). La clave se lee de
   `NVD_API_KEY` o de `programa/nvd_api_key.txt` (en `.gitignore`; `read_api_key()`), solo va
   en las peticiones a NVD y nunca se registra. Tests con
@@ -224,13 +226,12 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [x] CI en GitHub (2026-10-26): el primer run falló en Ubuntu porque `os.path.basename` no
   quitaba una ruta de Windows en `--anonymize` (fallo real de privacidad, invisible en Windows);
   corregido en `5c29e70` y la CI pasa en Python 3.12 y 3.14.
-- [ ] Regenerar `ejemplos/` (el pcap y los informes de ejemplo no tienen aún NTP, SNI,
-  WS-Discovery ni los campos nuevos).
+- [x] Regenerar `ejemplos/` (2026-11-16): laboratorio + `extra_rule_packets()` e informes con `--cve`.
 - [x] TXT de mDNS: modelo y firmware (2026-11-16).
 - [ ] Sacar versiones de los banners que ya se guardan (SSDP `SERVER`, DHCP vendor class),
   distinguiendo firmware de librería (`udhcp 1.24.1` es BusyBox, no el firmware).
 - [x] Búsqueda de vulnerabilidades `--cve` (2026-11-16): NVD por CPE + KEV, caché, certeza
-  modelo / modelo+firmware. El nivel "solo fabricante" se descartó (KEV por fabricante = ruido).
+  modelo / modelo+firmware / fabricante (suposición: CVE recientes de hardware de la marca).
 - [ ] CVE: más software en `SERVICE_PRODUCTS` (Shelly, Tasmota…) y probar con los
   dispositivos reales del laboratorio cuántos se emparejan con un CPE (Hito 6).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
@@ -286,3 +287,6 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   ritmo de NVD y nivel de certeza; sección aparte en consola/JSON/CSV y pestaña CVE en la GUI;
   alerta solo con KEV + modelo+firmware. Probado contra NVD real con el laboratorio sintético.
   Tests 60 → 79. Asistido por Claude.
+- **2026-11-16** — `--cve`: nivel **fabricante (suposición)** con CVE recientes de hardware de la
+  marca (a petición del autor); clave de NVD en `programa/nvd_api_key.txt` (en `.gitignore`);
+  `ejemplos/` regenerado (24 CVE en el ejemplo: 9 por modelo, 15 por fabricante). Tests 80 → 89.

@@ -1,49 +1,61 @@
 {
   "summary": {
-    "generated_at": "2026-10-25T17:23:34+00:00",
+    "generated_at": "2026-11-16T15:50:17+00:00",
     "mode": "pcap",
     "pcap": "../ejemplos/ejemplo_lab.pcap",
-    "device_count": 6,
-    "identified_count": 6,
+    "cve_search": {
+      "searched": 3,
+      "by_vendor": 11,
+      "not_searched": 0,
+      "no_cpe": 0,
+      "cves": 24,
+      "kev": 0,
+      "discarded_by_version": 3,
+      "requests": 18,
+      "errors": 0,
+      "kev_loaded": true
+    },
+    "device_count": 14,
+    "identified_count": 14,
     "top_protocols": [
       [
-        "TCP",
-        5
+        "UDP",
+        14
       ],
       [
-        "UDP",
+        "mDNS",
+        8
+      ],
+      [
+        "TCP",
+        7
+      ],
+      [
+        "DHCP",
         5
       ],
       [
         "DNS",
-        2
+        4
+      ],
+      [
+        "WS-Discovery",
+        3
       ],
       [
         "TLS",
         2
       ],
       [
-        "mDNS",
+        "IPv6",
         2
-      ],
-      [
-        "DHCP",
-        2
-      ],
-      [
-        "NTP",
-        1
       ],
       [
         "ARP",
         1
       ],
       [
-        "SSDP",
-        1
-      ],
-      [
-        "IPv6",
+        "NTP",
         1
       ]
     ],
@@ -71,6 +83,38 @@
       [
         "Dispositivo Matter",
         1
+      ],
+      [
+        "Altavoz / asistente inteligente",
+        1
+      ],
+      [
+        "Dispositivo CoAP (IoT restringido)",
+        1
+      ],
+      [
+        "Border router Thread / controlador Matter",
+        1
+      ],
+      [
+        "Impresora",
+        1
+      ],
+      [
+        "NAS / servidor de ficheros",
+        1
+      ],
+      [
+        "Dispositivo Apple",
+        1
+      ],
+      [
+        "Equipo Windows",
+        1
+      ],
+      [
+        "Móvil Android",
+        1
       ]
     ],
     "alerts": [
@@ -97,10 +141,335 @@
       },
       {
         "severity": "BAJA",
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "port": 5683,
+        "message": "CoAP sin DTLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "port": 5683,
+        "message": "Habla CoAP sin DTLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
         "device": "192.168.1.66",
         "mac": "00:11:22:00:00:05",
         "port": 1900,
         "message": "UPnP activo (puede abrir puertos en el router)"
+      }
+    ],
+    "cves": [
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48426",
+        "cvss": 10.0,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2024-04-05",
+        "summary": "u-boot bug that allows for u-boot shell and interrupt over UART"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48417",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "Missing Permission checks resulting in unauthorized access and Manipulation in KeyChainActivity Application"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48424",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "U-Boot shell vulnerability resulting in Privilege escalation in a production device"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48425",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "U-Boot vulnerability resulting in persistent Code Execution"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-6181",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "An oversight in BCB handling of reboot reason that allows for persistent code execution"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13192",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a heap buffer overflow vulnerability as the IPP service did not parse attribute names pr…"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13193",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a stack buffer overflow vulnerability as the web server did not parse the cookie value p…"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13194",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by different information disclosure vulnerabilities that provided sensitive information to …"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2018-12716",
+        "cvss": 4.3,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2018-06-25",
+        "summary": "The API service on Google Home and Chromecast devices before mid-July 2018 does not prevent DNS rebinding attacks from reading the scan_results JSON data, whic…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2026-4149",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2026-04-11",
+        "summary": "Sonos Era 300 SMB Response Out-Of-Bounds Access Remote Code Execution Vulnerability. This vulnerability allows remote attackers to execute arbitrary code on af…"
+      },
+      {
+        "device": "192.168.1.115",
+        "mac": "00:11:32:00:00:15",
+        "id": "CVE-2024-11131",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "synology:* (hardware)",
+        "published": "2025-03-19",
+        "summary": "A vulnerability regarding out-of-bounds read is found in the video interface. This allows remote attackers to execute arbitrary code via unspecified vectors. T…"
+      },
+      {
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "id": "CVE-2025-66176",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "hikvision:* (hardware)",
+        "published": "2026-01-13",
+        "summary": "There is a Buffer overflow Vulnerability in the device Search and Discovery feature of Hikvision Access Control Products. If exploited, an attacker on the same…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1048",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Speaker libsmb2 Use-After-Free Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary cod…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1049",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1050",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Out-of-Bounds Write Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on affect…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1051",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-06-02",
+        "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+      },
+      {
+        "device": "192.168.1.116",
+        "mac": "f0:18:98:00:00:16",
+        "id": "CVE-2024-11691",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "apple:* (hardware)",
+        "published": "2024-11-26",
+        "summary": "Certain WebGL operations on Apple silicon M series devices could have lead to an out-of-bounds write and memory corruption due to a flaw in Apple's GPU driver.…"
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2026-48581",
+        "cvss": 7.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2026-07-14",
+        "summary": "Insufficient granularity of access control in Microsoft Surface allows an authorized attacker to elevate privileges locally."
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-21194",
+        "cvss": 7.1,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-02-11",
+        "summary": "Microsoft Surface Security Feature Bypass Vulnerability"
+      },
+      {
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "id": "CVE-2025-66174",
+        "cvss": 6.8,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "hikvision:* (hardware)",
+        "published": "2025-12-19",
+        "summary": "There is an improper authentication vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an …"
+      },
+      {
+        "device": "192.168.1.116",
+        "mac": "f0:18:98:00:00:16",
+        "id": "CVE-2019-8900",
+        "cvss": 6.8,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "apple:* (hardware)",
+        "published": "2025-02-21",
+        "summary": "A vulnerability in the SecureROM of some Apple devices can be exploited by an unauthenticated local attacker to execute arbitrary code upon booting those devic…"
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-53781",
+        "cvss": 6.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-08-12",
+        "summary": "Exposure of sensitive information to an unauthorized actor in Azure Virtual Machines allows an authorized attacker to disclose information over a network."
+      },
+      {
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "id": "CVE-2025-66173",
+        "cvss": 6.2,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "hikvision:* (hardware)",
+        "published": "2025-12-19",
+        "summary": "There is a privilege escalation vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an atta…"
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-49707",
+        "cvss": 5.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-08-12",
+        "summary": "Improper access control in Azure Virtual Machines allows an authorized attacker to perform spoofing locally."
       }
     ]
   },
@@ -111,29 +480,35 @@
       "vendor": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
       "hostname": null,
       "source": "pasivo",
-      "packet_count": 6,
+      "packet_count": 7,
       "protocols": [
         "ARP",
         "DNS",
         "NTP",
         "TCP",
         "TLS",
-        "UDP"
+        "UDP",
+        "WS-Discovery"
       ],
       "ports_dst": [
         53,
         123,
-        443
+        443,
+        3702
       ],
       "ports_src": [
         23,
-        554
+        554,
+        3702
       ],
       "dns_queries": [
         "dev.hik-connect.com"
       ],
       "mdns_services": [],
-      "banners": [],
+      "banners": [
+        "ONVIF:hardware=DS-2CD2043G2-I",
+        "ONVIF:name=HIKVISION Entrada"
+      ],
       "ipv6": [],
       "tls_sni": [
         "api.hik-connect.com"
@@ -141,16 +516,56 @@
       "ntp_servers": [
         "203.0.113.123"
       ],
+      "wsd_types": [
+        "Device",
+        "NetworkVideoTransmitter"
+      ],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
       "labels": [
         {
           "label": "Cámara IP / NVR",
-          "score": 6,
+          "score": 10,
           "confidence": "alta",
           "evidence": [
             "sirve puerto 554 (+2)",
-            "fabricante 'Hikvision' (+1)",
+            "WS-Discovery NetworkVideoTransmitter (+3)",
+            "texto 'HIKVISION' (+2)",
             "consulta dev.hik-connect.com (+3)"
           ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2025-66176",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "hikvision:* (hardware)",
+          "published": "2026-01-13",
+          "summary": "There is a Buffer overflow Vulnerability in the device Search and Discovery feature of Hikvision Access Control Products. If exploited, an attacker on the same…"
+        },
+        {
+          "id": "CVE-2025-66174",
+          "cvss": 6.8,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "hikvision:* (hardware)",
+          "published": "2025-12-19",
+          "summary": "There is an improper authentication vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an …"
+        },
+        {
+          "id": "CVE-2025-66173",
+          "cvss": 6.2,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "hikvision:* (hardware)",
+          "published": "2025-12-19",
+          "summary": "There is a privilege escalation vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an atta…"
         }
       ]
     },
@@ -180,6 +595,19 @@
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [
+        "ca=201221",
+        "fn=Saln de Oscar",
+        "id=8f3a1c2b9d4e5f60",
+        "md=Chromecast",
+        "st=0",
+        "ve=05"
+      ],
+      "models": [
+        "Chromecast"
+      ],
+      "firmware": [],
       "labels": [
         {
           "label": "Chromecast / Smart TV",
@@ -190,6 +618,68 @@
             "anuncia _googlecast._tcp (+3)",
             "texto 'Chromecast' (+2)"
           ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2023-48426",
+          "cvss": 10.0,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2024-04-05",
+          "summary": "u-boot bug that allows for u-boot shell and interrupt over UART"
+        },
+        {
+          "id": "CVE-2023-48417",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "Missing Permission checks resulting in unauthorized access and Manipulation in KeyChainActivity Application"
+        },
+        {
+          "id": "CVE-2023-48424",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "U-Boot shell vulnerability resulting in Privilege escalation in a production device"
+        },
+        {
+          "id": "CVE-2023-48425",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "U-Boot vulnerability resulting in persistent Code Execution"
+        },
+        {
+          "id": "CVE-2023-6181",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "An oversight in BCB handling of reboot reason that allows for persistent code execution"
+        },
+        {
+          "id": "CVE-2018-12716",
+          "cvss": 4.3,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2018-06-25",
+          "summary": "The API service on Google Home and Chromecast devices before mid-July 2018 does not prevent DNS rebinding attacks from reading the scan_results JSON data, whic…"
         }
       ]
     },
@@ -221,6 +711,10 @@
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
       "labels": [
         {
           "label": "Enchufe / bombilla inteligente",
@@ -232,7 +726,8 @@
             "consulta a3.tuyaeu.com (+3)"
           ]
         }
-      ]
+      ],
+      "cves": []
     },
     {
       "ip": "192.168.1.40",
@@ -240,20 +735,37 @@
       "vendor": "Espressif Inc.",
       "hostname": null,
       "source": "pasivo",
-      "packet_count": 1,
+      "packet_count": 2,
       "protocols": [
-        "TCP"
+        "TCP",
+        "UDP",
+        "mDNS"
       ],
       "ports_dst": [
-        1883
+        1883,
+        5353
       ],
       "ports_src": [],
       "dns_queries": [],
-      "mdns_services": [],
+      "mdns_services": [
+        "_esphomelib._tcp"
+      ],
       "banners": [],
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [
+        "board=esp32dev",
+        "friendly_name=Sensor Terraza",
+        "mac=240ac4000004",
+        "platform=ESP32",
+        "version=2024.6.1"
+      ],
+      "models": [],
+      "firmware": [
+        "2024.6.1"
+      ],
       "labels": [
         {
           "label": "Dispositivo MQTT (sensor/actuador IoT)",
@@ -264,7 +776,8 @@
             "fabricante 'Esp' (+1)"
           ]
         }
-      ]
+      ],
+      "cves": []
     },
     {
       "ip": "192.168.1.66",
@@ -298,6 +811,10 @@
         "evilscript.example31mrm"
       ],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
       "labels": [
         {
           "label": "Dispositivo UPnP / multimedia",
@@ -316,7 +833,481 @@
             "sirve puerto 1900 (+1)"
           ]
         }
+      ],
+      "cves": []
+    },
+    {
+      "ip": "192.168.1.111",
+      "mac": "00:0e:58:00:00:11",
+      "vendor": "Sonos, Inc.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "TCP",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        5353
+      ],
+      "ports_src": [
+        1400
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_sonos._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Altavoz / asistente inteligente",
+          "score": 7,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 1400 (+3)",
+            "anuncia _sonos._tcp (+3)",
+            "fabricante 'Sonos' (+1)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2026-4149",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2026-04-11",
+          "summary": "Sonos Era 300 SMB Response Out-Of-Bounds Access Remote Code Execution Vulnerability. This vulnerability allows remote attackers to execute arbitrary code on af…"
+        },
+        {
+          "id": "CVE-2025-1048",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Speaker libsmb2 Use-After-Free Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary cod…"
+        },
+        {
+          "id": "CVE-2025-1049",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+        },
+        {
+          "id": "CVE-2025-1050",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Out-of-Bounds Write Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on affect…"
+        },
+        {
+          "id": "CVE-2025-1051",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-06-02",
+          "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+        }
       ]
+    },
+    {
+      "ip": "192.168.1.112",
+      "mac": "dc:a6:32:00:00:12",
+      "vendor": "Raspberry Pi Trading Ltd",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 1,
+      "protocols": [
+        "UDP"
+      ],
+      "ports_dst": [
+        5683
+      ],
+      "ports_src": [
+        5683
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Dispositivo CoAP (IoT restringido)",
+          "score": 2,
+          "confidence": "baja",
+          "evidence": [
+            "sirve puerto 5683 (+2)"
+          ]
+        }
+      ],
+      "cves": []
+    },
+    {
+      "ip": "192.168.1.114",
+      "mac": "00:80:77:00:00:14",
+      "vendor": "Brother industries, LTD.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "UDP",
+        "WS-Discovery",
+        "mDNS"
+      ],
+      "ports_dst": [
+        3702,
+        5353
+      ],
+      "ports_src": [
+        3702
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_ipp._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [
+        "PrintDeviceType"
+      ],
+      "mdns_txt": [
+        "note=Despacho",
+        "pdl=application/pdf",
+        "product=(Brother HL-L2350DW series)",
+        "txtvers=1",
+        "ty=Brother HL-L2350DW series"
+      ],
+      "models": [
+        "Brother HL-L2350DW series"
+      ],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Impresora",
+          "score": 8,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _ipp._tcp (+3)",
+            "WS-Discovery PrintDeviceType (+3)",
+            "texto 'Brother' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2019-13192",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a heap buffer overflow vulnerability as the IPP service did not parse attribute names pr…"
+        },
+        {
+          "id": "CVE-2019-13193",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a stack buffer overflow vulnerability as the web server did not parse the cookie value p…"
+        },
+        {
+          "id": "CVE-2019-13194",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by different information disclosure vulnerabilities that provided sensitive information to …"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.115",
+      "mac": "00:11:32:00:00:15",
+      "vendor": "Synology Incorporated",
+      "hostname": "DiskStation",
+      "source": "pasivo",
+      "packet_count": 3,
+      "protocols": [
+        "DHCP",
+        "TCP",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        67,
+        5353
+      ],
+      "ports_src": [
+        5000
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_smb._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "NAS / servidor de ficheros",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 5000 (+1)",
+            "anuncia _smb._tcp (+2)",
+            "texto 'DiskStation' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2024-11131",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "synology:* (hardware)",
+          "published": "2025-03-19",
+          "summary": "A vulnerability regarding out-of-bounds read is found in the video interface. This allows remote attackers to execute arbitrary code via unspecified vectors. T…"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.116",
+      "mac": "f0:18:98:00:00:16",
+      "vendor": "Apple, Inc.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DNS",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        53,
+        5353
+      ],
+      "ports_src": [],
+      "dns_queries": [
+        "gateway.icloud.com"
+      ],
+      "mdns_services": [
+        "_companion-link._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Dispositivo Apple",
+          "score": 7,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _companion-link._tcp (+3)",
+            "fabricante 'Apple' (+1)",
+            "consulta gateway.icloud.com (+3)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2024-11691",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "apple:* (hardware)",
+          "published": "2024-11-26",
+          "summary": "Certain WebGL operations on Apple silicon M series devices could have lead to an out-of-bounds write and memory corruption due to a flaw in Apple's GPU driver.…"
+        },
+        {
+          "id": "CVE-2019-8900",
+          "cvss": 6.8,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "apple:* (hardware)",
+          "published": "2025-02-21",
+          "summary": "A vulnerability in the SecureROM of some Apple devices can be exploited by an unauthenticated local attacker to execute arbitrary code upon booting those devic…"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.117",
+      "mac": "00:15:5d:00:00:17",
+      "vendor": "Microsoft Corporation",
+      "hostname": "DESKTOP-4F2K9QX",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DHCP",
+        "UDP",
+        "WS-Discovery"
+      ],
+      "ports_dst": [
+        67,
+        3702
+      ],
+      "ports_src": [
+        3702
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [
+        "DHCP:MSFT 5.0"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [
+        "Computer"
+      ],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Equipo Windows",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "WS-Discovery Computer (+3)",
+            "texto 'DESKTOP-' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2026-48581",
+          "cvss": 7.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2026-07-14",
+          "summary": "Insufficient granularity of access control in Microsoft Surface allows an authorized attacker to elevate privileges locally."
+        },
+        {
+          "id": "CVE-2025-21194",
+          "cvss": 7.1,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-02-11",
+          "summary": "Microsoft Surface Security Feature Bypass Vulnerability"
+        },
+        {
+          "id": "CVE-2025-53781",
+          "cvss": 6.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-08-12",
+          "summary": "Exposure of sensitive information to an unauthorized actor in Azure Virtual Machines allows an authorized attacker to disclose information over a network."
+        },
+        {
+          "id": "CVE-2025-49707",
+          "cvss": 5.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-08-12",
+          "summary": "Improper access control in Azure Virtual Machines allows an authorized attacker to perform spoofing locally."
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.118",
+      "mac": "2c:d0:66:00:00:18",
+      "vendor": "Xiaomi Communications Co Ltd",
+      "hostname": "Redmi-Note-12",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DHCP",
+        "DNS",
+        "UDP"
+      ],
+      "ports_dst": [
+        53,
+        67
+      ],
+      "ports_src": [],
+      "dns_queries": [
+        "connectivitycheck.gstatic.com"
+      ],
+      "mdns_services": [],
+      "banners": [
+        "DHCP:android-dhcp-14"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Móvil Android",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "texto 'Redmi' (+2)",
+            "consulta connectivitycheck.gstatic.com (+3)"
+          ]
+        }
+      ],
+      "cves": []
     },
     {
       "ip": null,
@@ -347,6 +1338,10 @@
       ],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
       "labels": [
         {
           "label": "Dispositivo Matter",
@@ -357,7 +1352,51 @@
             "anuncia _matter._tcp (+3)"
           ]
         }
-      ]
+      ],
+      "cves": []
+    },
+    {
+      "ip": null,
+      "mac": "b8:27:eb:00:00:13",
+      "vendor": "Raspberry Pi Foundation",
+      "hostname": "openthread-br",
+      "source": "pasivo",
+      "packet_count": 1,
+      "protocols": [
+        "IPv6",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        5353
+      ],
+      "ports_src": [],
+      "dns_queries": [],
+      "mdns_services": [
+        "_meshcop._udp"
+      ],
+      "banners": [],
+      "ipv6": [
+        "fe80::ba27:ebff:fe00:13"
+      ],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "labels": [
+        {
+          "label": "Border router Thread / controlador Matter",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _meshcop._udp (+3)",
+            "texto 'openthread' (+2)"
+          ]
+        }
+      ],
+      "cves": []
     }
   ]
 }

@@ -173,7 +173,7 @@ pasiva más rentable para subir de "fabricante" a "modelo" o "modelo + versión"
 | No todo lo que parece versión es firmware | (excluidas a propósito) | `sniffer.py:54-57` | `txtvers` = versión del **formato** del TXT; `ve` en Chromecast = versión del **protocolo** |
 | Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:143-151`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
 | El modelo es texto que el dispositivo dice de sí mismo | `own = hostname + models + banners` | `heuristics.py:185` | Pesa +2 en las reglas (frente a +1 del fabricante por OUI) |
-| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:151-158`, `:178` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
+| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:157-164`, `:184` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
 
 Límites: el saneado solo admite ASCII (`Salón` queda como `Saln`); no todos los
 fabricantes usan las mismas claves, así que habrá TXT con versión que no se reconozcan
@@ -312,13 +312,13 @@ exportados con `--anonymize` llevan seudónimos.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:168-187` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
-| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:168-187` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
-| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:136-145` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
-| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:136-145` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
-| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:161-165` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
-| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:185` | `C:\Users\…\lab.pcap` → `lab.pcap` |
-| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:129-141`; casilla en `gui.py:301` | La tabla en pantalla sigue mostrando los datos reales |
+| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:174-193` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
+| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:174-193` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
+| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:142-151` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
+| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:142-151` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
+| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:167-171` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
+| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:191` | `C:\Users\…\lab.pcap` → `lab.pcap` |
+| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:129-141`; casilla en `gui.py:302` | La tabla en pantalla sigue mostrando los datos reales |
 
 Limitación: las consultas DNS y el SNI se conservan porque son evidencia técnica, pero en
 un móvil pueden revelar hábitos de navegación.
@@ -349,7 +349,7 @@ un móvil pueden revelar hábitos de navegación.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:550-563` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:554-567` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
 
 ## Análisis de vulnerabilidades (`iot_scanner/vulns.py`, añadido el 2026-11-16)
 
@@ -373,27 +373,29 @@ sabemos del dispositivo.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Buscar el CVE por el texto del modelo no funciona: NVD empareja por CPE | `find_products()` | `vulns.py:165-188` | Busca el modelo en el diccionario CPE y se queda con los productos cuyo nombre aparece **tal cual** en el modelo (`_appears_in`, `:160-162`): `hl-l2350dw` sí casa con "Brother HL-L2350DW series"; `hl-l2350` y `dcp-1610w` no. Quita palabras que no están en CPE ("series", `MODEL_NOISE`, `:63`) |
-| Software reconocible aunque no anuncie modelo | `SERVICE_PRODUCTS` | `vulns.py:58-60`, `device_products()` `:191-198` | `_esphomelib._tcp` → `esphome:esphome`; su `version=` es la del software |
-| CVE de un producto en NVD | `product_cves()` | `vulns.py:262-277` | `virtualMatchString=cpe:2.3:*:fabricante:producto` (cualquier parte) y, si existe, también `..._firmware` |
-| Niveles de certeza: fabricante < modelo < modelo + firmware | `assess()` | `vulns.py:229-243` | **modelo+firmware** si la versión anunciada cae en el rango vulnerable; **modelo** si no hay versión o NVD no da rango; si el rango la excluye, el CVE **se descarta** |
-| Rangos de versión de NVD | `version_in_range()`, `_vkey()` | `vulns.py:205-226` | Versión exacta en el CPE, o `versionStart/EndIncluding/Excluding`; compara las versiones como números (`2024.6.1` → `(2024, 6, 1)`) |
-| Gravedad | `_cvss()` | `vulns.py:246-253` | CVSS v4.0, si no v3.1, v3.0 o v2 (la "Primary", que es la de NVD) |
-| KEV marca, no busca | `load_kev()` | `vulns.py:280-283` | Solo dice si un CVE encontrado por modelo está en KEV. Buscar en KEV por fabricante es ruido: "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un Chromecast. Por eso **solo con el fabricante no se busca** |
-| NVD sin clave admite 5 peticiones cada 30 s | `Client._throttle()` | `vulns.py:112-118` | 6 s entre consultas (0,6 s con `NVD_API_KEY`); KEV no cuenta |
-| No repetir consultas | `Client._cache_read/_cache_write` | `vulns.py:120-143` | Caché en disco de 24 h (`~/.cache/iot_scanner`, `--cve-cache`); si falla, se sigue sin caché |
-| Privacidad: qué sale a internet | `lookup_all()` | `vulns.py:315-339` | Solo el modelo (lo anuncia el propio dispositivo a toda la red) y nombres CPE; nunca MAC, IP ni hostname. User-Agent genérico |
-| Lo que llega de internet tampoco es de fiar | `_http_get_json()`, `_summary()` | `vulns.py:72-78`, `:256-259` | Solo `https`, timeout de 30 s, como mucho 32 MB; la descripción se limpia de caracteres de control y se recorta a 160 |
-| Sin red no se rompe nada | `Client.get()` | `vulns.py:95-110` | Un error de red o un JSON roto cuenta como error y se avisa; el informe indica que puede estar incompleto |
+| Buscar el CVE por el texto del modelo no funciona: NVD empareja por CPE | `find_products()` | `vulns.py:188-211` | Busca el modelo en el diccionario CPE y se queda con los productos cuyo nombre aparece **tal cual** en el modelo (`_appears_in`, `:160-162`): `hl-l2350dw` sí casa con "Brother HL-L2350DW series"; `hl-l2350` y `dcp-1610w` no. Quita palabras que no están en CPE ("series", `MODEL_NOISE`, `:63`) |
+| Software reconocible aunque no anuncie modelo | `SERVICE_PRODUCTS` | `vulns.py:65-67`, `device_products()` `:191-198` | `_esphomelib._tcp` → `esphome:esphome`; su `version=` es la del software |
+| CVE de un producto en NVD | `product_cves()` | `vulns.py:285-300` | `virtualMatchString=cpe:2.3:*:fabricante:producto` (cualquier parte) y, si existe, también `..._firmware` |
+| Niveles de certeza: fabricante < modelo < modelo + firmware | `assess()` | `vulns.py:252-266` | **modelo+firmware** si la versión anunciada cae en el rango vulnerable; **modelo** si no hay versión o NVD no da rango; si el rango la excluye, el CVE **se descarta** |
+| Rangos de versión de NVD | `version_in_range()`, `_vkey()` | `vulns.py:228-249` | Versión exacta en el CPE, o `versionStart/EndIncluding/Excluding`; compara las versiones como números (`2024.6.1` → `(2024, 6, 1)`) |
+| Nivel 3, **fabricante**: una suposición, no una certeza | `cpe_vendor()`, `vendor_recent_cves()` | `vulns.py:318-341`, `lookup_device()` `:381-387` | Si solo sabemos el fabricante (OUI), o el modelo no está en el diccionario CPE: CVE de **hardware** del fabricante (`cpe:2.3:h:hikvision`) publicados en los **últimos 2 años**, como mucho **5** y los más graves primero. Solo `h:` porque `o:` mete el sistema operativo (Google: 614 CVE de Android/ChromeOS en 120 días). Nunca genera alertas, ni estando en KEV |
+| Del nombre OUI a la marca CPE | `cpe_vendor()`, `VENDOR_NOISE` | `vulns.py:82-91`, `:318-325` | "Hangzhou Hikvision Digital Technology Co.,Ltd." → `hikvision`: se quitan ciudades y palabras de empresa (inc, ltd, technology, smart…); MAC aleatoria o desconocido → no se busca |
+| Gravedad | `_cvss()` | `vulns.py:269-276` | CVSS v4.0, si no v3.1, v3.0 o v2 (la "Primary", que es la de NVD) |
+| KEV marca, no busca | `load_kev()` | `vulns.py:344-348` | Solo dice si un CVE encontrado por modelo está en KEV. Buscar en KEV por fabricante es ruido: "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un Chromecast. |
+| NVD sin clave admite 5 peticiones cada 30 s | `Client._throttle()` | `vulns.py:135-141` | 6 s entre consultas (0,6 s con `NVD_API_KEY`); KEV no cuenta |
+| No repetir consultas | `Client._cache_read/_cache_write` | `vulns.py:143-166` | Caché en disco de 24 h (`~/.cache/iot_scanner`, `--cve-cache`); si falla, se sigue sin caché |
+| Privacidad: qué sale a internet | `lookup_all()` | `vulns.py:395-423` | Solo el modelo (lo anuncia el propio dispositivo a toda la red), el fabricante y nombres CPE; nunca MAC, IP ni hostname. User-Agent genérico |
+| Lo que llega de internet tampoco es de fiar | `_http_get_json()`, `_summary()` | `vulns.py:95-101`, `:279-282` | Solo `https`, timeout de 30 s, como mucho 32 MB; la descripción se limpia de caracteres de control y se recorta a 160 |
+| Sin red no se rompe nada | `Client.get()` | `vulns.py:118-133` | Un error de red o un JSON roto cuenta como error y se avisa; el informe indica que puede estar incompleto |
 
 ### En el informe
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:94-99`, `:235-252` | Sección "Vulnerabilidades conocidas", con certeza, KEV y cuántos se descartaron por versión |
+| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:94-105`, `:241-259` | Sección "Vulnerabilidades conocidas", con certeza (`certainty_label()`: "fabricante (suposición)"), KEV y cuántos se descartaron por versión |
 | Solo un CVE tan seguro y urgente como un Telnet abierto se convierte en alerta | bucle `for c in dev.cves` | `report.py:85-90` | Alerta ALTA si está en **KEV** y la certeza es **modelo+firmware**; sin puerto (`-`) |
-| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:29`, `report.py:280-281` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
-| GUI | pestaña CVE, casilla | `gui.py:209-212`, `:256-263`, `:466-472` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
+| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:29`, `report.py:288-289` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
+| GUI | pestaña CVE, casilla | `gui.py:209-212`, `:256-263`, `:467-474` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
 | CLI | `--cve`, `--cve-cache` | `net_device_scanner.py:65-68`, `:124-125` | Se busca después de clasificar |
 
 ### Ejemplo con datos reales (NVD, 2026-11-16)
@@ -404,11 +406,15 @@ sabemos del dispositivo.
 | Chromecast | modelo (`md=Chromecast`), sin versión (`ve` es el protocolo) | 6 CVE, certeza **modelo** |
 | Sensor ESPHome 2024.6.1 | software + versión | 3 CVE de ESPHome, **los 3 descartados**: la versión está fuera de los rangos |
 | (prueba) ESPHome 2024.1.0 | software + versión | CVE-2024-27287 (rango 2023.12.9–2024.2.2), certeza **modelo+firmware** |
+| Cámara Hikvision (sin modelo en mDNS) | fabricante | 3 CVE recientes de hardware Hikvision (CVE-2025-66176, 8.8…), certeza **fabricante (suposición)** |
+| Altavoz Sonos, NAS Synology, Apple, Windows | fabricante | 1-5 CVE recientes cada uno, **suposición** |
+| Enchufe Tuya, bombilla WiZ | fabricante | ninguno: NVD no tiene CVE de hardware recientes de esas marcas |
 
 El ejemplo de ESPHome muestra para qué sirve la versión: sin ella, se habrían listado 3 CVE que
 no le afectan.
 
 **Limitaciones:**
+- El nivel fabricante habla de **otros** equipos de la marca: sirve para decidir qué mirar primero, no para afirmar nada de este. Si la marca CPE no coincide con el nombre OUI (Raspberry Pi → `raspberrypi`), no sale nada.
 - Solo se encuentran dispositivos cuyo modelo esté en el diccionario CPE con un nombre parecido.
 - La comparación de versiones solo mira los números (`1.0-beta` y `1.0` se ven iguales).
 - Con más de 200 CVE por producto solo se ven los primeros (se avisa).

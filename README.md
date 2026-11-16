@@ -103,9 +103,10 @@ python net_device_scanner.py --pcap c.pcap --cve                         # + CVE
 - **`--cve`**: busca vulnerabilidades conocidas en [NVD](https://nvd.nist.gov) por el modelo
   (pasado a nombre CPE) y marca las que están en el catálogo [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
   (explotadas activamente). Cada CVE lleva su certeza: **modelo+firmware** (la versión
-  anunciada es vulnerable) o **modelo** (sin versión); los que la versión descarta no salen.
-  Van en una sección aparte de las alertas; solo pasa a alerta ALTA un CVE en KEV con certeza
-  modelo+firmware. A internet solo se envían modelos, nunca MAC/IP/hostname. Caché de 24 h en
+  anunciada es vulnerable), **modelo** (sin versión) o **fabricante (suposición)**: si solo se
+  sabe la marca, los CVE recientes (2 años) de su hardware, como mucho 5, que hablan de otros
+  equipos de la marca y no de este. Los que la versión descarta no salen. Van en una sección
+  aparte de las alertas; solo pasa a alerta ALTA un CVE en KEV con certeza modelo+firmware. A internet solo se envían modelos y fabricantes, nunca MAC/IP/hostname. Caché de 24 h en
   `~/.cache/iot_scanner` (`--cve-cache`). Sin clave de NVD espera 6 s entre consultas; con
   [clave](https://nvd.nist.gov/developers/request-an-api-key), 0,6 s: pégala en
   `programa/nvd_api_key.txt` (está en `.gitignore`, no se sube) o en la variable `NVD_API_KEY`.
