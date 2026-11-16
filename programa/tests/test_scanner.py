@@ -510,3 +510,55 @@ def test_synthetic_traffic_covers_every_rule():
     labels = {r.label for r in heuristics.RULES}
     assert len(hit & labels) / len(labels) >= 0.8
     assert hit >= labels   # hoy, el 100 %
+
+
+# ---------------- Registros TXT de mDNS (modelo y firmware) ----------------
+
+def test_txt_model_and_firmware(devices):
+    cast, sensor = devices[lab.CAST], devices[lab.SENSOR]
+    assert cast.models == {"Chromecast"}
+    assert "md=Chromecast" in cast.mdns_txt and "ve=05" in cast.mdns_txt
+    assert not cast.firmware                     # ve = versión del protocolo, no del firmware
+    assert sensor.firmware == {"2024.6.1"}       # ESPHome: version=
+    assert "platform=ESP32" in sensor.mdns_txt
+
+
+def test_txt_format_version_is_not_firmware():
+    s = PassiveSniffer()
+    for pkt in lab.extra_rule_packets():
+        s.handle_packet(pkt)
+    printer = s.devices[lab.PRINTER]
+    assert printer.models == {"Brother HL-L2350DW series"}   # ty= y product=(...) se unifican
+    assert not printer.firmware                              # txtvers=1 no es firmware
+
+
+def test_txt_model_counts_as_own_text():
+    d = Device(mac="aa", vendor="desconocido", models={"Chromecast Ultra"})
+    best = heuristics.classify(d)[0]
+    assert best["label"] == "Chromecast / Smart TV"
+    assert "texto 'Chromecast' (+2)" in best["evidence"]
+
+
+def test_txt_hostile_and_malformed():
+    from scapy.all import DNS, DNSRR, IP, UDP, Ether
+    mac = "00:11:22:00:00:90"
+    pairs = [b"md=<script>x</script>", b"ver=1.0;rm -rf /\x1b[31m", b"=sinclave", b"solo_clave",
+             b"MODEL=Mayus"] + [f"k{i}=v".encode() for i in range(100)]
+    pkt = (Ether(src=mac) / IP(src="192.168.1.90", dst="224.0.0.251") / UDP(sport=5353, dport=5353) /
+           DNS(qr=1, an=[DNSRR(rrname="x._http._tcp.local.", type="TXT", rdata=pairs)]))
+    dev = _sniff(pkt)[mac]
+    assert all(c not in t for t in dev.mdns_txt | dev.models | dev.firmware for c in "<>;" + chr(27))
+    assert "solo_clave" in dev.mdns_txt                     # clave sin valor (booleana en DNS-SD)
+    assert "Mayus" in dev.models                            # las claves no distinguen mayúsculas
+    assert len(dev.mdns_txt) <= 32                          # tope de pares por registro
+
+
+def test_anonymize_drops_identifying_txt(devices):
+    anon, _ = report.anonymize(devices)
+    cast = next(d for d in anon.values() if d.vendor.startswith("Google"))
+    sensor = next(d for d in anon.values() if d.vendor.startswith("Espressif"))
+    assert "md=Chromecast" in cast.mdns_txt and "ve=05" in cast.mdns_txt
+    assert not any(t.startswith(("id=", "fn=")) for t in cast.mdns_txt)
+    assert "version=2024.6.1" in sensor.mdns_txt
+    assert not any(t.startswith(("mac=", "friendly_name=")) for t in sensor.mdns_txt)
+    assert cast.models == {"Chromecast"} and sensor.firmware == {"2024.6.1"}   # lo técnico se queda

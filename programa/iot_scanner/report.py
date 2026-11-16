@@ -127,6 +127,19 @@ def make_pseudonymizer(key=None):
     return pseudo
 
 
+# Claves TXT de mDNS que se conservan al anonimizar (lista blanca: minimización). Las
+# demás se quitan porque suelen identificar al equipo o a su dueño: id, deviceid, mac,
+# serial... o nombres que pone el usuario, como fn=Salón de Oscar o note=Despacho.
+SAFE_TXT_KEYS = {"md", "model", "ty", "product", "usb_mdl", "app", "fw_version", "fw_ver",
+                 "fw_id", "firmware", "version", "ver", "osvers", "srcvers", "txtvers", "ve",
+                 "ca", "st", "platform", "board", "arch", "gen", "pdl", "tls", "c#", "s#",
+                 "ci", "ff", "sf"}
+
+
+def _keep_txt(entry):
+    return entry.partition("=")[0] in SAFE_TXT_KEYS
+
+
 def _anonymize_banner(banner, pseudo):
     # El nombre ONVIF lo pone el usuario ("HIKVISION Entrada") y puede delatar dónde está
     if banner.startswith("ONVIF:name="):
@@ -144,6 +157,7 @@ def anonymize(devices, meta=None, key=None):
             mac=pseudo("mac", d.mac), ip=pseudo("ip", d.ip), hostname=pseudo("host", d.hostname),
             ipv6={pseudo("ip6", a) for a in d.ipv6},
             banners={_anonymize_banner(b, pseudo) for b in d.banners},
+            mdns_txt={t for t in d.mdns_txt if _keep_txt(t)},
             labels=[dict(c) for c in d.labels])
         out[new.mac] = new
     meta = dict(meta or {})
@@ -215,7 +229,7 @@ def export_json(devices, summary, path):
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers", "wsd_types"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt"]
 
 
 def _csv_safe(value):
@@ -246,6 +260,9 @@ def export_csv(devices, path):
                 "tls_sni": " ".join(sorted(d.tls_sni)),
                 "ntp_servers": " ".join(sorted(d.ntp_servers)),
                 "wsd_types": " ".join(sorted(d.wsd_types)),
+                "models": " | ".join(sorted(d.models)),
+                "firmware": " | ".join(sorted(d.firmware)),
+                "mdns_txt": " | ".join(sorted(d.mdns_txt)),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
     log.info("CSV guardado en %s", path)

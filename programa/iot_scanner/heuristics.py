@@ -182,7 +182,7 @@ def evaluate_rule(rule, dev):
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el
         # fabricante de la tarjeta de red: el fabricante no dice el tipo de dispositivo
-        own = " | ".join(filter(None, [dev.hostname, *sorted(dev.banners)]))
+        own = " | ".join(filter(None, [dev.hostname, *sorted(dev.models), *sorted(dev.banners)]))
         m = rule._text_re.search(own)
         if m:
             evidence.append((f"texto '{m.group(0)}'", WEIGHT_MEDIUM))

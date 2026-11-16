@@ -8,6 +8,8 @@ Hito 2 — Sniffing pasivo y extracción de metadatos.
   IPv6 (direcciones; Matter/Thread se anuncian por mDNS sobre IPv6).
 - WS-Discovery / ONVIF (UDP 3702, multicast): tipo de dispositivo y modelo que
   anuncian las cámaras IP, impresoras y equipos Windows.
+- Registros TXT de mDNS: pares clave=valor con los que muchos dispositivos anuncian
+  modelo y versión de firmware (Shelly, ESPHome, Chromecast, impresoras, HomeKit).
 
 Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
@@ -48,6 +50,15 @@ _WSD_ACTION = re.compile(r"<(?:[\w-]+:)?Action[^>]{0,256}>([^<]{1,256})<")
 _WSD_TYPES = re.compile(r"<(?:[\w-]+:)?Types[^>]{0,256}>([^<]{1,1024})<")
 _WSD_SCOPES = re.compile(r"<(?:[\w-]+:)?Scopes[^>]{0,256}>([^<]{1,4096})<")
 ONVIF_SCOPE_KEYS = ("name", "hardware", "mfr")
+
+# Registros TXT de mDNS (DNS-SD, RFC 6763): claves que, según el fabricante, dicen el
+# modelo o la versión del firmware. Solo se interpretan estas; el resto se guarda tal cual.
+# Ojo a las que parecen versión y no lo son: "txtvers" es la versión del formato del TXT
+# y "ve" en Chromecast la del protocolo, no la del firmware.
+TXT_TYPE = 16
+TXT_MODEL_KEYS = ("md", "model", "ty", "product", "usb_mdl", "app")
+TXT_FIRMWARE_KEYS = ("fw_version", "fw_ver", "fw_id", "firmware", "version", "ver", "osvers", "srcvers")
+TXT_MAX_PAIRS = 32   # pares por registro que se leen (un TXT puede traer muchos)
 
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")
 
@@ -111,6 +122,33 @@ def _parse_mdns(pkt, dev):
         # Respuesta A/AAAA (type 1 / 28) "mi-camara.local" -> hostname
         if dns.qr == 1 and getattr(rr, "type", None) in (1, 28) and name.endswith(".local"):
             dev.hostname = dev.hostname or sanitize_text(name[: -len(".local")])
+        # Respuesta TXT (type 16): lo que el dispositivo cuenta de sí mismo
+        if dns.qr == 1 and getattr(rr, "type", None) == TXT_TYPE:
+            _parse_txt(rr, dev)
+
+
+def _txt_pairs(rdata):
+    """Normaliza el rdata de un TXT (lista de bytes en Scapy >= 2.5) a [(clave, valor)]."""
+    items = rdata if isinstance(rdata, list) else [rdata]
+    pairs = []
+    for item in items[:TXT_MAX_PAIRS]:
+        text = item.decode("utf-8", errors="ignore") if isinstance(item, bytes) else str(item)
+        key, sep, value = text.partition("=")
+        key = sanitize_text(key, 32)
+        if key:   # las claves de DNS-SD no distinguen mayúsculas (RFC 6763, 6.4)
+            pairs.append((key.lower(), sanitize_text(value, 96) if sep else None))
+    return pairs
+
+
+def _parse_txt(rr, dev):
+    for key, value in _txt_pairs(getattr(rr, "rdata", None)):
+        dev.add("mdns_txt", f"{key}={value}" if value is not None else key)
+        if not value:
+            continue
+        if key in TXT_MODEL_KEYS:
+            dev.add("models", value.strip("() "))
+        elif key in TXT_FIRMWARE_KEYS:
+            dev.add("firmware", value)
 
 
 def _parse_dns(pkt, dev):

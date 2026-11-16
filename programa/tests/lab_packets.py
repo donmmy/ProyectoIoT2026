@@ -81,7 +81,12 @@ def lab_packets():
                 UDP(sport=5353, dport=5353) /
                 DNS(qr=1, aa=1, an=[DNSRR(rrname="Chromecast-Salon.local.", type="A", rdata="192.168.1.20"),
                                     DNSRR(rrname="_googlecast._tcp.local.", type="PTR",
-                                          rdata="Chromecast-Salon._googlecast._tcp.local.")]))
+                                          rdata="Chromecast-Salon._googlecast._tcp.local."),
+                                    # TXT: md = modelo; ve = versión del PROTOCOLO (no firmware);
+                                    # id y fn (nombre que pone el usuario) identifican al equipo
+                                    DNSRR(rrname="Chromecast-Salon._googlecast._tcp.local.", type="TXT",
+                                          rdata=[b"id=8f3a1c2b9d4e5f60", b"md=Chromecast", b"ve=05",
+                                                 "fn=Salón de Oscar".encode(), b"ca=201221", b"st=0"])]))
     pkts.append(Ether(src=CAST, dst=GW) / IP(src="192.168.1.20", dst="192.168.1.50") /
                 TCP(sport=8009, dport=52000, flags="SA"))
 
@@ -94,7 +99,12 @@ def lab_packets():
     pkts.append(Ether(src=PLUG, dst=GW) / IP(src="192.168.1.30", dst="192.168.1.50") /
                 TCP(sport=6668, dport=53000, flags="SA"))
 
-    # Sensor ESP32: publica en MQTT sin TLS
+    # Sensor ESP32: se anuncia como ESPHome (TXT con versión de firmware) y publica en MQTT sin TLS
+    pkts.append(Ether(src=SENSOR, dst="01:00:5e:00:00:fb") / IP(src="192.168.1.40", dst="224.0.0.251") /
+                UDP(sport=5353, dport=5353) /
+                DNS(qr=1, aa=1, an=[DNSRR(rrname="sensor-terraza._esphomelib._tcp.local.", type="TXT",
+                                          rdata=[b"version=2024.6.1", b"platform=ESP32", b"board=esp32dev",
+                                                 b"mac=240ac4000004", b"friendly_name=Sensor Terraza"])]))
     pkts.append(Ether(src=SENSOR, dst=GW) / IP(src="192.168.1.40", dst="192.168.1.5") /
                 TCP(sport=50123, dport=1883, flags="S"))
 
@@ -180,7 +190,11 @@ def extra_rule_packets():
     pkts.append(Ether(src=PRINTER, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.114", dst="239.255.255.250") /
                 UDP(sport=3702, dport=3702) / Raw(wsd_message("Hello", types="wprt:PrintDeviceType")))
     pkts.append(_mdns(PRINTER, "192.168.1.114", [
-        DNSRR(rrname="_ipp._tcp.local.", type="PTR", rdata="Brother HL._ipp._tcp.local.")]))
+        DNSRR(rrname="_ipp._tcp.local.", type="PTR", rdata="Brother HL._ipp._tcp.local."),
+        # TXT de impresora: ty/product = modelo; txtvers = versión del FORMATO (no firmware); note = ubicación
+        DNSRR(rrname="Brother HL._ipp._tcp.local.", type="TXT",
+              rdata=[b"txtvers=1", b"ty=Brother HL-L2350DW series", b"product=(Brother HL-L2350DW series)",
+                     b"note=Despacho", b"pdl=application/pdf"])]))
     # NAS Synology: hostname DiskStation, sirve 5000 y anuncia _smb._tcp
     pkts.append(_dhcp(NAS, [("hostname", b"DiskStation")]))
     pkts.append(Ether(src=NAS, dst=GW) / IP(src="192.168.1.115", dst="192.168.1.50") /

@@ -15,6 +15,7 @@ depende de IA en tiempo de ejecución.
 | 2026-10-25 | Claude (Claude Code) | Interfaz gráfica | `gui.py` (tkinter) y `abrir_interfaz.bat`; 3 tests nuevos. Revisada con captura de pantalla sobre el pcap de ejemplo. |
 | 2026-10-26 | Claude (Claude Code) | Seguridad y ampliación | Correcciones de `bandit`; WS-Discovery/ONVIF; escucha en vivo parable (`AsyncSniffer`, botón Detener, Ctrl+C); 8 tests nuevos. Pedido por el autor ("vamos a solucionar lo demás") tras revisar los pendientes. |
 | 2026-10-26 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Mejoras de calidad y privacidad | Qwen propuso una lista de mejoras; el autor eligió 8 y Claude las implementó con ajustes: reglas en `rules.json` (JSON en vez de YAML), logging, `--anonymize` (HMAC con clave aleatoria en vez de hash con sal), `--arp-interval` (0,01 s configurable en vez de 0,05 s fijo), `requirements.lock`, CI de GitHub Actions con cobertura, cobertura de reglas 15/15 y filtro en la GUI; 13 tests nuevos. Descartadas: `mypy` y resultados en tiempo real. |
+| 2026-11-16 | Claude (Claude Code) | Hito 2 (TXT de mDNS) | Lectura de registros TXT: modelo y versión de firmware como base para la futura búsqueda de CVE; lista blanca de claves al anonimizar; 5 tests nuevos. Pedido por el autor ("pues añadimos la lectura de registros TXT") tras analizar con Claude qué información de firmware dejan escapar los IoT. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -63,11 +64,11 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 55 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 60 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 92 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la
-  red (hostname DHCP/mDNS, banners SSDP, SNI de TLS) se sanea y recorta; el parser
+  red (hostname DHCP/mDNS, banners SSDP, SNI de TLS, TXT de mDNS) se sanea y recorta; el parser
   del ClientHello comprueba límites y devuelve `None` si el mensaje está cortado; el CSV escapa
   celdas que empiezan por `=`, `+`, `-` o `@`.
 - **Linting:** `flake8` sin avisos. `bandit` 1.9.4 (Python 3.14) sin avisos con

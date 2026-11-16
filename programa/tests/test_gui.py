@@ -72,6 +72,9 @@ def test_window_shows_results(pcap):
         app._on_select()
         detail = app.detail.get("1.0", "end")
         assert "Cámara IP" in detail and "554" in detail
+        app.tree.selection_set(lab.CAST)
+        app._on_select()
+        assert "Modelo: Chromecast" in app.detail.get("1.0", "end")
         assert "Dispositivos:" in app.summary_text.get("1.0", "end")
 
         app.mode.set("pcap")

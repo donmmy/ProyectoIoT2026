@@ -23,6 +23,9 @@ class Device:
     tls_sni: set = field(default_factory=set)      # servidores TLS a los que se conecta (SNI)
     ntp_servers: set = field(default_factory=set)  # servidores NTP que consulta
     wsd_types: set = field(default_factory=set)    # tipos WS-Discovery (NetworkVideoTransmitter...)
+    mdns_txt: set = field(default_factory=set)     # registros TXT de mDNS ("clave=valor")
+    models: set = field(default_factory=set)       # modelo anunciado (TXT md=, model=, ty=...)
+    firmware: set = field(default_factory=set)     # versión de firmware anunciada (TXT ver=, fw_id=...)
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
 
@@ -50,5 +53,8 @@ class Device:
             "tls_sni": sorted(self.tls_sni),
             "ntp_servers": sorted(self.ntp_servers),
             "wsd_types": sorted(self.wsd_types),
+            "mdns_txt": sorted(self.mdns_txt),
+            "models": sorted(self.models),
+            "firmware": sorted(self.firmware),
             "labels": self.labels,
         }

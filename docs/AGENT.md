@@ -29,13 +29,13 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | Hito | Contenido | Estado |
 |------|-----------|--------|
 | 1 | ARP scan, autodetección de interfaz/CIDR, fabricante por OUI, fallback a solo-escucha si no responde nadie | ✅ Hecho |
-| 2 | Sniffing pasivo por MAC; TCP/UDP/DNS/DHCP/mDNS/SSDP; hostname por DHCP opt.12 y mDNS. Ampliado con NTP, TLS (SNI), IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
+| 2 | Sniffing pasivo por MAC; TCP/UDP/DNS/DHCP/mDNS/SSDP; hostname por DHCP opt.12 y mDNS. Ampliado con NTP, TLS (SNI), IPv6 (Matter/Thread), WS-Discovery/ONVIF y TXT de mDNS (modelo y firmware) | ✅ Hecho |
 | 3 | Tabla de reglas → etiquetas candidatas con confianza (suma de pesos de las evidencias) | ✅ Hecho |
 | 4 | Tabla por consola, JSON/CSV, resumen (recuentos, protocolos top, alertas) | ✅ Hecho |
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **55 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **60 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 92 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -57,7 +57,7 @@ programa/               todo el código (ejecutar desde aquí)
   iot_scanner/
     device.py           dataclass Device (modelo común a todos los módulos)
     discovery.py        Hito 1: guess_network, validate_network, vendor_from_mac, arp_scan
-    sniffer.py          Hito 2: PassiveSniffer, sanitize_text, tls_sni, sniff_live, sniff_pcap
+    sniffer.py          Hito 2: PassiveSniffer, sanitize_text, tls_sni, _parse_txt, sniff_live, sniff_pcap
     heuristics.py       Hito 3: load_rules/use_rules (lee rules.json), evaluate_rule, classify
     rules.json          reglas, pesos y umbrales (editable; --rules carga otro fichero)
     logsetup.py         logging común CLI/GUI: consola [*]/[!] y --log fichero
@@ -108,6 +108,13 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   media = 2 (puertos de protocolo como 554/1883, texto en hostname o banner), débil = 1
   (puertos genéricos 80/443/1900, texto que solo sale del fabricante por OUI).
   Tablas `STRONG_PORTS`, `WEAK_PORTS`, `MEDIUM_MDNS` en `heuristics.py`.
+- **TXT de mDNS** (2026-11-16): primer paso hacia la búsqueda de CVE, que necesita **modelo** y,
+  para tener certeza, **versión de firmware** (niveles de certeza: fabricante < modelo < modelo
+  + firmware). Se guardan todos los pares en `mdns_txt` y solo se interpretan claves conocidas
+  (`TXT_MODEL_KEYS`, `TXT_FIRMWARE_KEYS`); `txtvers` (formato) y `ve` de Chromecast
+  (protocolo) **no** son firmware. El modelo cuenta como texto propio (+2) en las reglas. Con
+  `--anonymize` solo quedan las claves de `SAFE_TXT_KEYS` (lista blanca): `id`, `mac`, `fn`,
+  `note`… identifican al equipo o al usuario.
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
   lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
@@ -205,6 +212,13 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   corregido en `5c29e70` y la CI pasa en Python 3.12 y 3.14.
 - [ ] Regenerar `ejemplos/` (el pcap y los informes de ejemplo no tienen aún NTP, SNI,
   WS-Discovery ni los campos nuevos).
+- [x] TXT de mDNS: modelo y firmware (2026-11-16).
+- [ ] Sacar versiones de los banners que ya se guardan (SSDP `SERVER`, DHCP vendor class),
+  distinguiendo firmware de librería (`udhcp 1.24.1` es BusyBox, no el firmware).
+- [ ] Búsqueda de vulnerabilidades (`--cve`, opcional y con internet): CISA KEV en local + NVD
+  por CPE con caché; enviar solo fabricante/modelo; cada resultado con su nivel de certeza
+  (fabricante / modelo / modelo + firmware). Probado a mano el 2026-11-16: NVD por texto del
+  modelo da 0 resultados; hay que emparejar por CPE (CVE-2021-36260, en KEV, lista 610 CPE).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
   dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
@@ -251,3 +265,6 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - **2026-10-26** — Primer run de la CI: fallo en Linux por la ruta del pcap en `--anonymize`
   (`os.path.basename` no separa por `\`); corregido y CI en verde. Acciones a checkout@v5 y
   setup-python@v6 (Node 20 obsoleto).
+- **2026-11-16** — Análisis de vulnerabilidades, primer paso: lectura de los TXT de mDNS
+  (modelo y firmware, con exclusiones `txtvers`/`ve` y lista blanca al anonimizar). Prueba
+  manual de NVD y CISA KEV para planificar `--cve`. Tests 55 → 60. Asistido por Claude.
