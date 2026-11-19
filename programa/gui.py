@@ -82,7 +82,8 @@ def list_interfaces():
     return items
 
 
-def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=None, cve=False):
+def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=None, cve=False,
+               save_pcap=None):
     """Traduce las opciones de la ventana a argumentos de la CLI."""
     argv = ["-t", str(int(seconds)), "--arp-timeout", str(int(arp_timeout))]
     if cve:
@@ -99,6 +100,8 @@ def build_argv(mode, iface=None, network=None, seconds=30, arp_timeout=3, pcap=N
         argv.append("--sniff-only")
     elif mode == "arp-only":
         argv.append("--no-sniff")
+    if save_pcap and mode != "arp-only":     # solo hay paquetes que guardar si se escucha
+        argv += ["--save-pcap", save_pcap]
     return argv
 
 
@@ -111,7 +114,7 @@ def run_analysis(argv, stop_event=None):
     return devices, report.build_summary(devices, meta)
 
 
-SUMMARY_META_KEYS = ("mode", "pcap", "iface", "network", "listen_seconds", "cve_search")
+SUMMARY_META_KEYS = ("mode", "pcap", "iface", "network", "listen_seconds", "cve_search", "saved_pcap")
 
 
 class _QueueLogHandler(logging.Handler):
@@ -146,6 +149,7 @@ class ScannerApp(ttk.Frame):
         self.expected = 0
         self.anonymize = tk.BooleanVar(value=False)
         self.cve = tk.BooleanVar(value=False)
+        self.save_pcap = tk.BooleanVar(value=False)
         self.filter_text = tk.StringVar()
         self._all_rows = []   # iids de la tabla, para el filtro
         setup_logging(extra_handler=_QueueLogHandler(self.queue))
@@ -210,6 +214,10 @@ class ScannerApp(ttk.Frame):
 
         ttk.Checkbutton(box, text="Buscar CVE conocidos (NVD + CISA KEV; necesita internet, solo envía modelos)",
                         variable=self.cve).grid(row=5, column=0, columnspan=7, sticky="w", pady=(4, 0))
+        self.save_pcap_box = ttk.Checkbutton(
+            box, text="Guardar la captura en un .pcap (para Wireshark o repetir el análisis; lleva datos sensibles)",
+            variable=self.save_pcap)
+        self.save_pcap_box.grid(row=6, column=0, columnspan=7, sticky="w")
 
         self.admin_note = ttk.Label(box, foreground="#a15c00")
         self.admin_note.grid(row=4, column=0, columnspan=7, sticky="w", pady=(4, 0))
@@ -316,6 +324,8 @@ class ScannerApp(ttk.Frame):
             self.arp_box.configure(state="disabled")
         self.pcap.configure(state="disabled" if live else "normal")
         self.pcap_btn.configure(state="disabled" if live else "normal")
+        # Solo se puede guardar lo que se escucha en vivo
+        self.save_pcap_box.configure(state="normal" if mode in ("arp+sniff", "sniff-only") else "disabled")
 
         if live and not npcap_ok():
             self.admin_note.configure(text="⚠ No se detecta Npcap: instálalo desde https://npcap.com para "
@@ -343,9 +353,16 @@ class ScannerApp(ttk.Frame):
             return
         mode = self.mode.get()
         try:
+            save_path = None
+            if self.save_pcap.get() and mode in ("arp+sniff", "sniff-only"):
+                save_path = filedialog.asksaveasfilename(
+                    title="Guardar captura", defaultextension=".pcap", initialfile="captura.pcap",
+                    filetypes=[("Captura pcap", "*.pcap")])
+                if not save_path:      # cancelado: no se empieza
+                    return
             argv = build_argv(mode, self._selected_iface(), self.network.get().strip() or None,
                               self.seconds.get(), self.arp_timeout.get(), self.pcap.get().strip() or None,
-                              cve=self.cve.get())
+                              cve=self.cve.get(), save_pcap=save_path)
         except (ValueError, tk.TclError) as e:
             messagebox.showerror("Opciones no válidas", str(e) or "Revisa los números introducidos.")
             return

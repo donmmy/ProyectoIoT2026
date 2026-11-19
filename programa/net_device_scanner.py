@@ -24,6 +24,7 @@ Uso:
     python3 net_device_scanner.py --pcap c.pcap --anonymize -o res.json   # informe sin MAC/IP reales
     python3 net_device_scanner.py --pcap c.pcap --log scanner.log -v      # registro de depuración
     python3 net_device_scanner.py --pcap c.pcap --cve                     # + CVE conocidos (internet)
+    sudo python3 net_device_scanner.py -t 300 --save-pcap lab.pcap        # guarda la captura (Wireshark, --pcap)
 """
 
 import argparse
@@ -57,6 +58,8 @@ def parse_args(argv=None):
     mode.add_argument("--sniff-only", action="store_true", help="Omite el ARP scan y solo escucha pasivamente")
     mode.add_argument("--no-sniff", action="store_true", help="Solo ARP scan, sin escucha pasiva")
     mode.add_argument("--pcap", help="Analiza un fichero .pcap en lugar de capturar en vivo")
+    p.add_argument("--save-pcap", metavar="FICHERO",
+                   help="Guarda los paquetes de la escucha en vivo en un .pcap (para Wireshark o --pcap)")
     p.add_argument("-o", "--output", help="Ruta del fichero JSON de salida")
     p.add_argument("--csv", help="Ruta del fichero CSV de salida")
     p.add_argument("--anonymize", action="store_true",
@@ -72,6 +75,8 @@ def parse_args(argv=None):
     args = p.parse_args(argv)
     if args.time < 0 or args.arp_timeout < 1 or not 0 <= args.arp_interval <= 1:
         p.error("los tiempos deben ser positivos (y --arp-interval entre 0 y 1 s)")
+    if args.save_pcap and (args.pcap or args.no_sniff):
+        p.error("--save-pcap guarda una escucha en vivo: no se combina con --pcap ni con --no-sniff")
     return args
 
 
@@ -102,13 +107,20 @@ def run_live(args, stop_event=None):
                 args.time = args.time or 30
 
     listened = 0
+    saved = None
     if not args.no_sniff and args.time > 0:
         t0 = time.monotonic()
-        sniffer.sniff_live(iface, args.time, devices, ignore_macs=[own_mac], stop_event=stop_event)
+        sniffer.sniff_live(iface, args.time, devices, ignore_macs=[own_mac], stop_event=stop_event,
+                           save_path=args.save_pcap)
         listened = round(time.monotonic() - t0)  # puede ser menor si se detuvo antes
+        saved = args.save_pcap
+    elif args.save_pcap:
+        log.warning("No se ha guardado ninguna captura: no hubo escucha (-t 0).")
 
-    return devices, {"iface": str(iface), "network": network, "mode": mode,
-                     "listen_seconds": listened}
+    meta = {"iface": str(iface), "network": network, "mode": mode, "listen_seconds": listened}
+    if saved:
+        meta["saved_pcap"] = saved
+    return devices, meta
 
 
 def analyze(args, stop_event=None):

@@ -31,6 +31,7 @@ permisos de administrador para capturar (o sin ellos, si analiza un `.pcap`).
 |---|---|
 | Datos capturados: MAC, IP, hostnames, consultas DNS, SNI, TXT de mDNS | Identifican equipos y personas (`fn=Salón de Oscar`, `note=Despacho`) y revelan hábitos (DNS, SNI) |
 | Informes JSON/CSV y `--log` | Un inventario con tipos, versiones y CVE es un mapa de ataque de la red |
+| Capturas guardadas (`--save-pcap`) | Llevan **todo** el tráfico visible en claro, sin anonimizar: es el activo más sensible |
 | Clave de la API de NVD (`programa/nvd_api_key.txt`) | Es personal; con ella otro podría consumir la cuota del autor |
 | El portátil del analista | Captura con permisos de administrador: un fallo al procesar paquetes se ejecuta con esos permisos |
 | La confianza en el resultado | Una identificación o un CVE erróneos llevan a decisiones erróneas |
@@ -108,5 +109,6 @@ Estas limitaciones no son fallos de seguridad, pero condicionan cualquier conclu
 | La CLI no pide confirmación antes de escanear | Pensada para scripts y pruebas | Mostrar el aviso legal al arrancar una captura en vivo |
 | La pantalla y el `--log` muestran los datos reales aunque se use `--anonymize` | `--anonymize` solo afecta a lo exportado | Tratar el `--log` como dato sensible (está en `.gitignore`) |
 | `--anonymize` deja el dominio registrable de DNS y SNI (desde 2026-11-19 ya no el nombre completo) | El dominio base es la evidencia de con qué nube habla; en un móvil aún revela qué servicios usa | Valorar caso por caso antes de compartir el informe |
+| La captura de `--save-pcap` no se anonimiza ni se cifra | Debe abrirse en Wireshark tal cual | Guardarla fuera de carpetas compartidas y borrarla al terminar; nunca subirla (`.gitignore` la excluye) |
 | Clave de NVD en texto plano en el disco | Es el mecanismo más simple | Usar la variable `NVD_API_KEY` desde un gestor de secretos |
 | Un dispositivo puede anunciar un modelo o una versión falsos | La herramienta es pasiva: no puede comprobarlo | Contrastar con el panel del fabricante o un escaneo activo autorizado |

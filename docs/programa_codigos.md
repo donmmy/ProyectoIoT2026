@@ -28,7 +28,7 @@ el OUI de la MAC da el fabricante.
 | Envío/recepción en capa 2 | `srp(pkt, timeout, iface, retry, inter)` | `discovery.py:126` | Envía tramas crudas y empareja pregunta ↔ respuesta |
 | La respuesta trae IP + MAC | `resp[ARP].hwsrc`, `resp[ARP].psrc` | `discovery.py:130-131` | No hace falta un segundo paso de búsqueda |
 | La MAC identifica al dispositivo (la IP cambia por DHCP) | `devices[mac] = Device(...)` | `discovery.py:131` | Diccionario con la MAC como clave |
-| Aislamiento de clientes (AP isolation) | `if not devices: mode = "fallback-sniff-only"` | `net_device_scanner.py:95-102` | Si nadie responde al ARP, pasa a escucha pasiva (mín. 30 s) |
+| Aislamiento de clientes (AP isolation) | `if not devices: mode = "fallback-sniff-only"` | `net_device_scanner.py:100-107` | Si nadie responde al ARP, pasa a escucha pasiva (mín. 30 s) |
 
 **Puntos débiles detectados:** recorte a /24 silencioso; `_get_manuf` es API privada
 de Scapy; si una IP responde con varias MACs (proxy ARP), cada respuesta pisa la
@@ -46,8 +46,8 @@ hostname, servicios y banners.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:528-562` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
-| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:568` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
+| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:528-563` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
+| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:594` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
 | La MAC de origen identifica al emisor | `pkt[Ether].src` | `sniffer.py:447` | Clave para agrupar |
 | `0.0.0.0` / `::` = "sin dirección" (DHCP sin IP, ruta sin gateway) | `is_unspecified(ip)` con `ipaddress` | `discovery.py:26-31` | Sustituye las comparaciones con el literal `"0.0.0.0"` (avisos B104 de bandit) |
 | Bit I/G (0x01): multicast/broadcast no son emisores reales | `_is_unicast(mac)` | `sniffer.py:79-80`, `:448` | Descarta orígenes multicast; también se ignora la MAC propia |
@@ -184,12 +184,29 @@ anuncia servicios por mDNS.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:538-539` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
-| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:540-550` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
-| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:519-525`, `:552-555` | Reintenta hasta 5 s hasta que la captura para de verdad |
-| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:556-557` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
+| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:553-555` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
+| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:568-578` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
+| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:519-525`, `:580-583` | Reintenta hasta 5 s hasta que la captura para de verdad |
+| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:584-585` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
 | Se analiza lo capturado hasta el corte | `listened = round(time.monotonic() - t0)` | `net_device_scanner.py` (`run_live`) | El informe guarda los segundos escuchados de verdad |
 | Botón Detener solo durante la escucha | `self.stop_btn`, `self.stop_event.set()` | `gui.py` (`_start`, `_stop`) | Activo en modos con escucha en vivo; se desactiva al terminar |
+
+### Guardar la captura: `--save-pcap` (2026-11-19)
+
+Para el Hito 6: una sola captura que luego se abre en Wireshark y se vuelve a analizar con
+`--pcap` las veces que haga falta (al cambiar una regla o un peso, mismo tráfico de entrada).
+
+| Teoría | Código | Dónde | Qué hace |
+|---|---|---|---|
+| Guardar como Wireshark: todo lo que llega, sin filtrar | `PcapWriter(..., sync=True)` + `handle(pkt)` | `sniffer.py:544-551` | Cada paquete se escribe **antes** de analizarlo, también los del propio equipo (el análisis los descarta, la captura no) |
+| Detener o Ctrl+C no deben perder la captura | escritura paquete a paquete y `writer.close()` en `finally` | `sniffer.py:554-559` | El fichero queda completo y cerrado aunque se corte o falle la captura (sin permisos) |
+| La espera de la captura, aparte | `_wait_capture()` | `sniffer.py:566-586` | El mismo bucle de antes (plazo, `stop_event`, Ctrl+C, reintentos), movido a una función |
+| Solo tiene sentido con escucha en vivo | `p.error(...)` | `net_device_scanner.py:79` | No se combina con `--pcap` ni con `--no-sniff`; con `-t 0` avisa de que no se guarda nada |
+| La captura es un dato sensible (todo el tráfico en claro) | aviso en el registro, `.gitignore` | `sniffer.py:545-546` | Excluida de git (`*.pcap`); con `--anonymize` el informe solo guarda el nombre del fichero |
+| GUI | casilla y diálogo "Guardar captura" | `gui.py:217-220`, `:356-362` | Solo activa en modos con escucha; si se cancela el diálogo, no se empieza |
+
+La fase de ARP scan no se guarda (la hace `srp` antes de escuchar): la captura empieza con la
+escucha pasiva.
 
 ### Seguridad del propio código: bandit (2026-10-26)
 
@@ -257,7 +274,7 @@ Sin datos reales para calcular los cocientes (eso es el Hito 6), se usan tres ni
 | Umbrales sobre la suma | `"confidence_levels"` → `CONFIDENCE_LEVELS`; `_confidence()` | `rules.json:9-13`, `heuristics.py:163-167` | Una pista fuerte sola = media; para alta hacen falta varias pistas |
 | Varias hipótesis ordenadas | `candidates.sort(...)`; `[:max_labels]` | `heuristics.py:233-234` | Hasta 3 etiquetas; en empate gana la regla que va antes en `RULES` |
 | Sin evidencias, sin etiqueta | `if ev:` | `heuristics.py:225` | Un dispositivo sin pistas queda "Sin identificar" (mejor que inventar) |
-| Se ejecuta tras el sniffing | `heuristics.classify_all(devices)` | `net_device_scanner.py:123` | Rellena `dev.labels` para el informe (Hito 4) |
+| Se ejecuta tras el sniffing | `heuristics.classify_all(devices)` | `net_device_scanner.py:135` | Rellena `dev.labels` para el informe (Hito 4) |
 
 **Antes y después** (casos comprobados el 2026-10-21 y el 2026-10-25):
 
@@ -294,7 +311,7 @@ Qwen (otro asistente de IA) propuso una lista de mejoras; el autor eligió estas
 | Separar datos (conocimiento) de código (motor): reglas nuevas sin tocar Python | `rules.json` + `load_rules()` | `rules.json`, `heuristics.py:125-146` | Reglas, pesos y umbrales en un fichero; se cargan al importar (`use_rules()`, `heuristics.py:160`) |
 | JSON y no YAML | — | — | Sin dependencia nueva (PyYAML no compilaba en Python 3.15) y sin el riesgo de cargar YAML con etiquetas de objetos |
 | Validar la entrada: una errata no debe pasar en silencio | `unknown = set(d) - _RULE_FIELDS`; `re.compile(...)` | `heuristics.py:99-101`, `:118` | Campos desconocidos, puertos fuera de 1-65535 o regex mal escritas → `ValueError` con el nombre de la regla |
-| Reglas propias del analista | `--rules fichero.json` → `use_rules(path)` | `net_device_scanner.py:64`, `:116-117` | Cambia las reglas sin editar el paquete. El fichero es configuración de confianza: una regex mal hecha puede ser lenta (ReDoS) |
+| Reglas propias del analista | `--rules fichero.json` → `use_rules(path)` | `net_device_scanner.py:67`, `:128-129` | Cambia las reglas sin editar el paquete. El fichero es configuración de confianza: una regex mal hecha puede ser lenta (ReDoS) |
 
 ### print() → logging
 
@@ -302,8 +319,8 @@ Qwen (otro asistente de IA) propuso una lista de mejoras; el autor eligió estas
 |---|---|---|---|
 | Separar **salida** (la tabla, el resumen: stdout) de **registro** (progreso y avisos: stderr / fichero) | `setup_logging()` | `logsetup.py:29-58` | `print_table`/`print_summary` siguen con `print`; el resto pasa a `logging` |
 | Niveles: DEBUG (detalle), INFO (progreso), WARNING/ERROR (avisos) | `ConsoleFormatter` | `logsetup.py:19-26` | En consola se mantiene el estilo `[*]` / `[!]`; `[.]` para depuración |
-| Registro persistente para depurar | `--log scanner.log`, `-v` | `net_device_scanner.py:69-70`, `logsetup.py:50-54` | El fichero recibe todo (DEBUG) con fecha y módulo |
-| Un logger por módulo bajo `iot_scanner` | `log = logging.getLogger(__name__)` | todos los módulos | La GUI cuelga su propio handler para la pestaña Registro (`gui.py:117`) |
+| Registro persistente para depurar | `--log scanner.log`, `-v` | `net_device_scanner.py:72-73`, `logsetup.py:50-54` | El fichero recibe todo (DEBUG) con fecha y módulo |
+| Un logger por módulo bajo `iot_scanner` | `log = logging.getLogger(__name__)` | todos los módulos | La GUI cuelga su propio handler para la pestaña Registro (`gui.py:120`) |
 
 El registro y la consola **no se anonimizan**: son para el analista. Solo los ficheros
 exportados con `--anonymize` llevan seudónimos.
@@ -312,13 +329,13 @@ exportados con `--anonymize` llevan seudónimos.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:266-289` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
-| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:266-289` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
+| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:266-292` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` (leído o guardado) |
+| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:266-292` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
 | Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:220-229` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
 | Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:220-229` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
 | Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:259-263` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
-| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:287` | `C:\Users\…\lab.pcap` → `lab.pcap` |
-| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:129-141`; casilla en `gui.py:302` | La tabla en pantalla sigue mostrando los datos reales |
+| La ruta del `.pcap` lleva el usuario del equipo | `re.split(r"[\\/]", ...)` | `report.py:286-290` | `C:\Users\…\lab.pcap` → `lab.pcap`, también en Linux (`os.path.basename` solo entiende el separador del sistema: fallo de la CI del 2026-10-26) |
+| Solo afecta a lo exportado | `export()` | `net_device_scanner.py:141-153`; casilla en `gui.py:310` | La tabla en pantalla sigue mostrando los datos reales |
 
 Limitación: las consultas DNS y el SNI se conservan porque son evidencia técnica, pero en
 un móvil pueden revelar hábitos de navegación.
@@ -349,7 +366,7 @@ un móvil pueden revelar hábitos de navegación.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:560-573` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:577-590` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
 
 ## Mejoras propuestas por Kiro (2026-11-19): JA3, DHCPv6, riesgo y eTLD+1
 
@@ -559,11 +576,11 @@ sabemos del dispositivo.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:115-126`, `:342-362` | Sección "Vulnerabilidades conocidas", con certeza (`certainty_label()`: "fabricante (suposición)"), KEV y cuántos se descartaron por versión |
+| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:115-126`, `:343-363` | Sección "Vulnerabilidades conocidas", con certeza (`certainty_label()`: "fabricante (suposición)"), KEV y cuántos se descartaron por versión |
 | Solo un CVE tan seguro y urgente como un Telnet abierto se convierte en alerta | bucle `for c in dev.cves` | `report.py:106-111` | Alerta ALTA si está en **KEV** y la certeza es **modelo+firmware**; sin puerto (`-`) |
-| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:34`, `report.py:392-393` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
-| GUI | pestaña CVE, casilla | `gui.py:209-212`, `:256-263`, `:468-475` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
-| CLI | `--cve`, `--cve-cache` | `net_device_scanner.py:65-68`, `:124-125` | Se busca después de clasificar |
+| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:34`, `report.py:393-394` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
+| GUI | pestaña CVE, casilla | `gui.py:213-216`, `:264-271`, `:485-492` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
+| CLI | `--cve`, `--cve-cache` | `net_device_scanner.py:68-71`, `:136-137` | Se busca después de clasificar |
 
 ### Ejemplo con datos reales (NVD, 2026-11-16)
 

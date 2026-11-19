@@ -92,6 +92,7 @@ python net_device_scanner.py --pcap c.pcap --anonymize -o informe.json   # sin M
 python net_device_scanner.py --pcap c.pcap --log scanner.log -v          # registro de depuración
 python net_device_scanner.py --pcap c.pcap --rules mis_reglas.json       # reglas propias
 python net_device_scanner.py --pcap c.pcap --cve                         # + CVE conocidos (internet)
+python net_device_scanner.py -t 300 --save-pcap lab.pcap                 # guarda la captura (Wireshark, --pcap)
 ```
 
 - **`--anonymize`**: los JSON/CSV exportados llevan seudónimos (HMAC-SHA256 con una clave
@@ -101,6 +102,9 @@ python net_device_scanner.py --pcap c.pcap --cve                         # + CVE
   casilla *Anonimizar al exportar*.
 - **Registro**: el progreso y los avisos salen por stderr (`[*]`, `[!]`; `[.]` con `-v`) y,
   con `--log`, a un fichero con todo el detalle. La tabla y el resumen salen por stdout.
+- **`--save-pcap`**: guarda los paquetes de la escucha en vivo en un `.pcap` (en la GUI, la casilla
+  *Guardar la captura*), para abrirla en Wireshark o repetir el análisis con `--pcap`. Lleva todo
+  el tráfico en claro: es un dato sensible (está en `.gitignore`).
 - **`--cve`**: busca vulnerabilidades conocidas en [NVD](https://nvd.nist.gov) por el modelo
   (pasado a nombre CPE) y marca las que están en el catálogo [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
   (explotadas activamente). Cada CVE lleva su certeza: **modelo+firmware** (la versión

@@ -35,7 +35,7 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **159 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **169 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -211,7 +211,7 @@ cd programa
 
 Captura en vivo: Windows necesita **Npcap** y consola de administrador; Linux/Mac `sudo`.
 Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `--no-sniff`,
-`--pcap`, `-o`, `--csv`, `--anonymize`, `--cve`, `--cve-cache`, `--rules`, `--log`, `-v`,
+`--pcap`, `--save-pcap`, `-o`, `--csv`, `--anonymize`, `--cve`, `--cve-cache`, `--rules`, `--log`, `-v`,
 `--list-ifaces`.
 
 ## Entorno y trampas conocidas
@@ -256,7 +256,10 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   dispositivos reales del laboratorio cuántos se emparejan con un CPE (Hito 6).
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
   dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
+- [x] `--save-pcap` (2026-11-19): guardar la escucha en vivo para Wireshark y para repetir el análisis.
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
+  Método: capturar una vez (`--save-pcap` o Wireshark) y analizar ese mismo fichero con `--pcap`;
+  preferible con el portátil como punto de acceso para ver el unicast.
 - [ ] Hito 5 (opcional): triaje con IA sobre datos anonimizados y ya saneados.
 - [ ] Futuro: capturar el **tráfico unicast** de los dispositivos. Hoy, en una red con
   switch o WiFi, solo llega el tráfico propio + broadcast/multicast (ARP, DHCP, mDNS,
@@ -317,3 +320,5 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   EUI-64 en IPv6 global. La de TXT de mDNS ya estaba. Tests 107 → 127. Implementado por Claude.
 - **2026-11-19** — Lista de **Kiro**: JA3, DHCPv6 (39 y 16), riesgo combinado por dispositivo y
   eTLD+1 al anonimizar (Public Suffix List en el repo). Tests 127 → 159. Implementado por Claude.
+- **2026-11-19** — `--save-pcap` y casilla en la GUI: la escucha en vivo se guarda paquete a
+  paquete (también lo del propio equipo); preparación del Hito 6. Tests 159 → 169. Asistido por Claude.

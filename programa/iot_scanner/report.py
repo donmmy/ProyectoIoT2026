@@ -283,10 +283,11 @@ def anonymize(devices, meta=None, key=None):
     meta = dict(meta or {})
     if meta.get("iface"):
         meta["iface"] = pseudo("iface", meta["iface"])
-    if meta.get("pcap"):
-        # La ruta lleva el usuario del equipo. Se separa por \ y por / a mano: os.path solo
-        # entiende el separador del sistema y en Linux dejaría entera una ruta de Windows
-        meta["pcap"] = re.split(r"[\\/]", meta["pcap"])[-1]
+    for key in ("pcap", "saved_pcap"):
+        if meta.get(key):
+            # La ruta lleva el usuario del equipo. Se separa por \ y por / a mano: os.path solo
+            # entiende el separador del sistema y en Linux dejaría entera una ruta de Windows
+            meta[key] = re.split(r"[\\/]", meta[key])[-1]
     meta["anonymized"] = True
     return out, meta
 

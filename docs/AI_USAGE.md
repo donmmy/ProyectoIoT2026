@@ -21,6 +21,7 @@ depende de IA en tiempo de ejecución.
 | 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | SSDP y modelo de amenazas | Segunda lista de Qwen; el autor eligió 3: tipos UPnP (NT/ST) con regla y alerta IGD, versiones del banner SSDP y de DHCP (firmware frente a librería, con CVE de miniupnpd/libupnp/BusyBox) y `docs/THREAT_MODEL.md`; 18 tests nuevos. Descartadas: sal persistente para `--anonymize`, Aho-Corasick, `mypy`; hilo de la GUI y bridges Hue/HomeKit ya estaban. |
 | 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Huella DHCP y EUI-64 | Tercera lista de Qwen; el autor eligió 2: huella DHCP (opción 55, campo `dhcp_fp` en las reglas) y alerta por IPv6 global con la MAC dentro (EUI-64); 20 tests nuevos. La tercera propuesta (TXT de mDNS) ya estaba hecha desde el 2026-11-16. |
 | 2026-11-19 | **Kiro** (propuestas) + Claude (Claude Code, revisión e implementación) | JA3, DHCPv6, riesgo y eTLD+1 | Lista de Kiro; el autor eligió 4: huella JA3 del ClientHello (campo `ja3` en las reglas), hostname y vendor class de DHCPv6, nivel de riesgo combinado por dispositivo y DNS/SNI al dominio registrable al anonimizar (con la Public Suffix List copiada en el repo); 32 tests nuevos. TXT de mDNS y opción 55 ya estaban; SNI de QUIC descartado. |
+| 2026-11-19 | Claude (Claude Code) | `--save-pcap` | Guardar la captura en vivo en un `.pcap` (CLI y casilla en la GUI) para comparar con Wireshark y repetir el análisis en el Hito 6; 10 tests nuevos. Pedido por el autor ("sí, añádelo"), que creía tenerlo hecho en otro ordenador sin subir: en el repositorio no existía en ningún commit. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -111,7 +112,7 @@ Kiro decía "92 % de cobertura": era el 95 % antes de estos cambios y sigue sié
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 159 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 169 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la

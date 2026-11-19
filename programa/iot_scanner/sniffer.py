@@ -22,7 +22,7 @@ import re
 import time
 from urllib.parse import unquote
 
-from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IPv6, Raw, rdpcap
+from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IPv6, PcapWriter, Raw, rdpcap
 from scapy.layers.dhcp6 import DHCP6, DHCP6OptClientFQDN, DHCP6OptVendorClass
 
 from .device import Device
@@ -525,18 +525,46 @@ def _stop_capture(capture):
     return False
 
 
-def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
+def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None, save_path=None):
     """
     Captura en vivo durante `seconds` segundos.
 
     Se puede cortar antes: activando `stop_event` (botón Detener de la GUI) o con Ctrl+C
     en la consola. En los dos casos se conserva y analiza lo capturado hasta ese momento.
+
+    Con `save_path` se guardan además todos los paquetes en un .pcap (como Wireshark,
+    incluidos los del propio equipo, que el análisis descarta): sirve para abrirlo luego en
+    Wireshark o repetir el análisis con --pcap. Se escribe paquete a paquete, así que
+    Detener o Ctrl+C no pierden lo ya capturado.
     """
     s = PassiveSniffer(devices, ignore_macs)
     log.info("Escuchando tráfico en %s durante %ss...", iface, seconds)
+    writer = None
+    if save_path:
+        writer = PcapWriter(str(save_path), append=False, sync=True)
+        log.warning("Guardando la captura en %s: lleva todo el tráfico visible en claro "
+                    "(MAC, IP, nombres, dominios). Trátala como un dato sensible.", save_path)
+
+    def handle(pkt):
+        if writer is not None:      # primero se guarda, como lo vería Wireshark
+            writer.write(pkt)
+        s.handle_packet(pkt)
     # AsyncSniffer no admite timeout: el plazo lo controla este bucle
-    capture = AsyncSniffer(iface=iface, prn=s.handle_packet, store=False)
-    capture.start()
+    capture = AsyncSniffer(iface=iface, prn=handle, store=False)
+    try:
+        capture.start()
+        _wait_capture(capture, seconds, stop_event)
+    finally:
+        if writer is not None:
+            writer.close()
+    if save_path:
+        log.info("Captura guardada en %s (%d paquetes).", save_path, s.total_packets)
+    log.info("%d paquetes procesados.", s.total_packets)
+    return s.devices
+
+
+def _wait_capture(capture, seconds, stop_event):
+    """Espera al plazo, al stop_event o a Ctrl+C y para la captura."""
     deadline = time.monotonic() + seconds
     stopped = False
     try:
@@ -557,8 +585,6 @@ def sniff_live(iface, seconds, devices=None, ignore_macs=(), stop_event=None):
         raise capture.exception
     if stopped:
         log.info("Captura detenida antes de tiempo; se analiza lo capturado hasta ahora.")
-    log.info("%d paquetes procesados.", s.total_packets)
-    return s.devices
 
 
 def sniff_pcap(path, devices=None, ignore_macs=()):
