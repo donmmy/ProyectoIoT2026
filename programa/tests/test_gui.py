@@ -26,6 +26,8 @@ def test_build_argv_modes():
     assert gui.build_argv("pcap", pcap="x.pcap")[-2:] == ["--pcap", "x.pcap"]
     assert "--sniff-only" in gui.build_argv("sniff-only")
     assert "--no-sniff" in gui.build_argv("arp-only")
+    assert "--cve" in gui.build_argv("pcap", pcap="x.pcap", cve=True)
+    assert "--cve" not in gui.build_argv("pcap", pcap="x.pcap")
     argv = gui.build_argv("arp+sniff", iface="Wi-Fi", network="192.168.1.0/24", seconds=60)
     assert argv[:2] == ["-t", "60"] and ["-i", "Wi-Fi"] == argv[4:6] and "-n" in argv
     with pytest.raises(ValueError):
@@ -72,6 +74,9 @@ def test_window_shows_results(pcap):
         app._on_select()
         detail = app.detail.get("1.0", "end")
         assert "Cámara IP" in detail and "554" in detail
+        app.tree.selection_set(lab.CAST)
+        app._on_select()
+        assert "Modelo: Chromecast" in app.detail.get("1.0", "end")
         assert "Dispositivos:" in app.summary_text.get("1.0", "end")
 
         app.mode.set("pcap")

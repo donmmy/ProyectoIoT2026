@@ -81,7 +81,12 @@ def lab_packets():
                 UDP(sport=5353, dport=5353) /
                 DNS(qr=1, aa=1, an=[DNSRR(rrname="Chromecast-Salon.local.", type="A", rdata="192.168.1.20"),
                                     DNSRR(rrname="_googlecast._tcp.local.", type="PTR",
-                                          rdata="Chromecast-Salon._googlecast._tcp.local.")]))
+                                          rdata="Chromecast-Salon._googlecast._tcp.local."),
+                                    # TXT: md = modelo; ve = versión del PROTOCOLO (no firmware);
+                                    # id y fn (nombre que pone el usuario) identifican al equipo
+                                    DNSRR(rrname="Chromecast-Salon._googlecast._tcp.local.", type="TXT",
+                                          rdata=[b"id=8f3a1c2b9d4e5f60", b"md=Chromecast", b"ve=05",
+                                                 "fn=Salón de Oscar".encode(), b"ca=201221", b"st=0"])]))
     pkts.append(Ether(src=CAST, dst=GW) / IP(src="192.168.1.20", dst="192.168.1.50") /
                 TCP(sport=8009, dport=52000, flags="SA"))
 
@@ -94,7 +99,12 @@ def lab_packets():
     pkts.append(Ether(src=PLUG, dst=GW) / IP(src="192.168.1.30", dst="192.168.1.50") /
                 TCP(sport=6668, dport=53000, flags="SA"))
 
-    # Sensor ESP32: publica en MQTT sin TLS
+    # Sensor ESP32: se anuncia como ESPHome (TXT con versión de firmware) y publica en MQTT sin TLS
+    pkts.append(Ether(src=SENSOR, dst="01:00:5e:00:00:fb") / IP(src="192.168.1.40", dst="224.0.0.251") /
+                UDP(sport=5353, dport=5353) /
+                DNS(qr=1, aa=1, an=[DNSRR(rrname="sensor-terraza._esphomelib._tcp.local.", type="TXT",
+                                          rdata=[b"version=2024.6.1", b"platform=ESP32", b"board=esp32dev",
+                                                 b"mac=240ac4000004", b"friendly_name=Sensor Terraza"])]))
     pkts.append(Ether(src=SENSOR, dst=GW) / IP(src="192.168.1.40", dst="192.168.1.5") /
                 TCP(sport=50123, dport=1883, flags="S"))
 
@@ -132,6 +142,7 @@ NAS = "00:11:32:00:00:15"       # OUI Synology
 APPLE = "f0:18:98:00:00:16"     # OUI Apple
 WINDOWS = "00:15:5d:00:00:17"   # OUI Microsoft
 ANDROID = "2c:d0:66:00:00:18"   # OUI Xiaomi
+ROUTER = "50:c7:bf:00:00:19"    # OUI TP-Link
 
 EXTRA_EXPECTED = {
     SPEAKER: "Altavoz / asistente inteligente",
@@ -142,6 +153,7 @@ EXTRA_EXPECTED = {
     APPLE: "Dispositivo Apple",
     WINDOWS: "Equipo Windows",
     ANDROID: "Móvil Android",
+    ROUTER: "Router / gateway",
 }
 
 
@@ -155,6 +167,16 @@ def _dhcp(mac, options):
     return (Ether(src=mac, dst="ff:ff:ff:ff:ff:ff") / IP(src=DHCP_NO_IP, dst="255.255.255.255") /
             UDP(sport=68, dport=67) / BOOTP(chaddr=bytes.fromhex(mac.replace(":", ""))) /
             DHCP(options=[("message-type", "request"), *options, "end"]))
+
+
+def ssdp_message(first_line, headers):
+    lines = [first_line, "HOST: 239.255.255.250:1900", *(f"{k}: {v}" for k, v in headers)]
+    return ("\r\n".join(lines) + "\r\n\r\n").encode()
+
+
+def _ssdp(mac, src, payload, sport=1900):
+    return (Ether(src=mac, dst="01:00:5e:7f:ff:fa") / IP(src=src, dst="239.255.255.250") /
+            UDP(sport=sport, dport=1900) / Raw(payload))
 
 
 def _dns_query(mac, src, name):
@@ -180,7 +202,11 @@ def extra_rule_packets():
     pkts.append(Ether(src=PRINTER, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.114", dst="239.255.255.250") /
                 UDP(sport=3702, dport=3702) / Raw(wsd_message("Hello", types="wprt:PrintDeviceType")))
     pkts.append(_mdns(PRINTER, "192.168.1.114", [
-        DNSRR(rrname="_ipp._tcp.local.", type="PTR", rdata="Brother HL._ipp._tcp.local.")]))
+        DNSRR(rrname="_ipp._tcp.local.", type="PTR", rdata="Brother HL._ipp._tcp.local."),
+        # TXT de impresora: ty/product = modelo; txtvers = versión del FORMATO (no firmware); note = ubicación
+        DNSRR(rrname="Brother HL._ipp._tcp.local.", type="TXT",
+              rdata=[b"txtvers=1", b"ty=Brother HL-L2350DW series", b"product=(Brother HL-L2350DW series)",
+                     b"note=Despacho", b"pdl=application/pdf"])]))
     # NAS Synology: hostname DiskStation, sirve 5000 y anuncia _smb._tcp
     pkts.append(_dhcp(NAS, [("hostname", b"DiskStation")]))
     pkts.append(Ether(src=NAS, dst=GW) / IP(src="192.168.1.115", dst="192.168.1.50") /
@@ -195,6 +221,29 @@ def extra_rule_packets():
     pkts.append(_dhcp(WINDOWS, [("hostname", b"DESKTOP-4F2K9QX"), ("vendor_class_id", b"MSFT 5.0")]))
     pkts.append(Ether(src=WINDOWS, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.117", dst="239.255.255.250") /
                 UDP(sport=3702, dport=3702) / Raw(wsd_message("Hello", types="pub:Computer")))
+    # Router TP-Link: NOTIFY SSDP de UPnP IGD (abre puertos al que se lo pida) con miniupnpd
+    for nt in ("urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+               "urn:schemas-upnp-org:service:WANIPConnection:1"):
+        pkts.append(_ssdp(ROUTER, "192.168.1.1", ssdp_message("NOTIFY * HTTP/1.1", [
+            ("NT", nt), ("NTS", "ssdp:alive"), ("SERVER", "Linux/3.10 UPnP/1.0 miniupnpd/2.1"),
+            ("LOCATION", "http://192.168.1.1:1900/rootDesc.xml")])))
+    # El sensor CoAP pide IP con el cliente DHCP de BusyBox (su versión es la de BusyBox).
+    # La opción 55 es una lista de EJEMPLO (no es la huella real de udhcp): sirve para probar
+    # que se lee en orden; las huellas reales se tomarán de los dispositivos del Hito 6
+    pkts.append(_dhcp(COAP, [("param_req_list", [1, 3, 6, 12, 15, 28, 42]),
+                             ("vendor_class_id", b"udhcp 1.24.1")]))
+    # El border router Thread usa también una IPv6 GLOBAL formada con su MAC (EUI-64):
+    # b8:27:eb:00:00:13 -> ba27:ebff:fe00:13 (bit U/L invertido y ff:fe en medio).
+    # 2001:db8::/32 es el rango de documentación (RFC 3849)
+    pkts.append(Ether(src=THREAD_BR, dst=GW) / IPv6(src="2001:db8:1::ba27:ebff:fe00:13", dst="2001:db8:2::1") /
+                UDP(sport=49153, dport=443))
+    # El NAS usa una IPv6 global con identificador aleatorio (RFC 4941): no filtra la MAC
+    pkts.append(Ether(src=NAS, dst=GW) / IPv6(src="2001:db8:1::5c1d:9a3e:71b2:4f08", dst="2001:db8:2::1") /
+                UDP(sport=49154, dport=443))
+    # El móvil BUSCA un IGD (M-SEARCH): su ST es lo que busca, no lo que es
+    pkts.append(_ssdp(ANDROID, "192.168.1.118", ssdp_message("M-SEARCH * HTTP/1.1", [
+        ("MAN", '"ssdp:discover"'), ("MX", "2"), ("ST", "urn:schemas-upnp-org:device:InternetGatewayDevice:1"),
+        ("USER-AGENT", "Android/14 UPnP/1.0 Cling/2.0")]), sport=50000))
     # Móvil Android: DHCP "android-dhcp-14" y comprobación de conectividad de Google
     pkts.append(_dhcp(ANDROID, [("hostname", b"Redmi-Note-12"), ("vendor_class_id", b"android-dhcp-14")]))
     pkts.append(_dns_query(ANDROID, "192.168.1.118", "connectivitycheck.gstatic.com"))
@@ -203,5 +252,6 @@ def extra_rule_packets():
 
 if __name__ == "__main__":
     out = sys.argv[1] if len(sys.argv) > 1 else str(DEFAULT_PCAP)
-    wrpcap(out, lab_packets())
+    # El laboratorio y un dispositivo por cada regla restante (impresora con TXT, NAS...)
+    wrpcap(out, lab_packets() + extra_rule_packets())
     print(f"Captura de ejemplo escrita en {out}")

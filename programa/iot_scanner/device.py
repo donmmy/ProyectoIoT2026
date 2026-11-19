@@ -23,6 +23,14 @@ class Device:
     tls_sni: set = field(default_factory=set)      # servidores TLS a los que se conecta (SNI)
     ntp_servers: set = field(default_factory=set)  # servidores NTP que consulta
     wsd_types: set = field(default_factory=set)    # tipos WS-Discovery (NetworkVideoTransmitter...)
+    mdns_txt: set = field(default_factory=set)     # registros TXT de mDNS ("clave=valor")
+    models: set = field(default_factory=set)       # modelo anunciado (TXT md=, model=, ty=...)
+    firmware: set = field(default_factory=set)     # versión de firmware anunciada (TXT ver=, fw_id=...)
+    upnp_types: set = field(default_factory=set)   # tipos UPnP anunciados por SSDP (InternetGatewayDevice...)
+    software: set = field(default_factory=set)     # librerías con versión (miniupnpd/2.1, udhcp/1.24.1)
+    dhcp_fingerprint: set = field(default_factory=set)  # DHCP opción 55 en orden ("1,3,6,15,28")
+    eui64_global: bool = False                     # IPv6 global con la MAC dentro (EUI-64)
+    cves: list = field(default_factory=list)       # rellenado por vulns (--cve)
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
 
@@ -50,5 +58,13 @@ class Device:
             "tls_sni": sorted(self.tls_sni),
             "ntp_servers": sorted(self.ntp_servers),
             "wsd_types": sorted(self.wsd_types),
+            "mdns_txt": sorted(self.mdns_txt),
+            "models": sorted(self.models),
+            "firmware": sorted(self.firmware),
+            "upnp_types": sorted(self.upnp_types),
+            "software": sorted(self.software),
+            "dhcp_fingerprint": sorted(self.dhcp_fingerprint),
+            "eui64_global": self.eui64_global,
             "labels": self.labels,
+            "cves": self.cves,
         }

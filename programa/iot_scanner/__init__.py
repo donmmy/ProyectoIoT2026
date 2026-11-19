@@ -6,6 +6,7 @@ Módulos (uno por hito del proyecto):
     sniffer     -> Hito 2: sniffing pasivo y extracción de metadatos
     heuristics  -> Hito 3: motor de heurísticas de identificación
     report      -> Hito 4: tabla por consola, JSON/CSV y resumen con alertas
+    vulns       -> --cve: vulnerabilidades conocidas (NVD por CPE + CISA KEV)
 """
 
 __version__ = "0.4.0"

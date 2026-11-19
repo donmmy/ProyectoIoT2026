@@ -14,9 +14,10 @@ Herramientas de Ciberseguridad*.
 | Hito | Contenido | Estado |
 |---|---|---|
 | 1 | Descubrimiento: ARP scan, red automática, fabricante por OUI | ✅ Hecho |
-| 2 | Escucha pasiva: DHCP, mDNS, DNS, SSDP, NTP, SNI de TLS, IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
+| 2 | Escucha pasiva: DHCP, mDNS (con TXT: modelo y firmware), DNS, SSDP (tipo UPnP y versiones), NTP, SNI de TLS, IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
 | 3 | Identificación por reglas con pesos (`rules.json`) | ✅ Hecho |
 | 4 | Informe: tabla, JSON/CSV (anonimizable) y alertas | ✅ Hecho |
+| + | Vulnerabilidades conocidas (`--cve`): NVD por CPE y CISA KEV, con nivel de certeza | ✅ Hecho |
 | 5 | Triaje asistido por IA sobre datos anonimizados | ⏳ Opcional, pendiente |
 | 6 | Pruebas en laboratorio real frente a Wireshark y memoria | ⏳ Pendiente |
 
@@ -27,6 +28,7 @@ El detalle de decisiones, pendientes y sesiones está en [`docs/AGENT.md`](docs/
 | Carpeta | Contenido |
 |---|---|
 | [`programa/`](programa) | El programa: paquete `iot_scanner/`, CLI `net_device_scanner.py`, interfaz gráfica `gui.py`, lanzador `abrir_interfaz.bat`, tests, reglas `iot_scanner/rules.json` y requisitos (`requirements*.txt`, `requirements.lock`) |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Modelo de amenazas: qué protege la herramienta, de quién (STRIDE), qué no ve y riesgos residuales |
 | [`ejemplos/`](ejemplos) | Captura sintética `ejemplo_lab.pcap` y los informes que genera (JSON y CSV). No contienen datos de ninguna red real |
 | [`docs/`](docs) | Apuntes: [uso de IA](docs/AI_USAGE.md), [teoría → código](docs/programa_codigos.md) y [contexto para agentes de IA](docs/AGENT.md) |
 
@@ -61,8 +63,11 @@ escucha en vivo, **■ Detener** la corta y se analiza lo capturado hasta ese mo
 de la tabla, **Filtrar** busca por IP, MAC, fabricante, hostname o tipo. Pestañas:
 
 - **Dispositivos**: tabla ordenable; al seleccionar uno se ven sus etiquetas candidatas
-  con las evidencias y puntos, protocolos, puertos, DNS, SNI, NTP, IPv6, WS-Discovery y banners.
+  con las evidencias y puntos, protocolos, puertos, DNS, SNI, NTP, IPv6, WS-Discovery, modelo,
+  firmware, TXT de mDNS y banners.
 - **Alertas**: coloreadas por severidad.
+- **CVE**: vulnerabilidades conocidas si se marcó *Buscar CVE conocidos* (necesita internet);
+  las que están en CISA KEV, en rojo.
 - **Resumen** y **Registro** (la salida que daría la CLI).
 - Botones **Exportar JSON / CSV**.
 
@@ -86,15 +91,27 @@ python net_device_scanner.py --arp-interval 0.05            # ARPs más espaciad
 python net_device_scanner.py --pcap c.pcap --anonymize -o informe.json   # sin MAC/IP/hostname reales
 python net_device_scanner.py --pcap c.pcap --log scanner.log -v          # registro de depuración
 python net_device_scanner.py --pcap c.pcap --rules mis_reglas.json       # reglas propias
+python net_device_scanner.py --pcap c.pcap --cve                         # + CVE conocidos (internet)
 ```
 
 - **`--anonymize`**: los JSON/CSV exportados llevan seudónimos (HMAC-SHA256 con una clave
   aleatoria que no se guarda) en lugar de MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y
-  ruta del `.pcap`. El mismo dispositivo tiene el mismo seudónimo en todo el informe, pero no
+  ruta del `.pcap`, y de los TXT de mDNS solo conservan las claves técnicas (modelo, versiones). El mismo dispositivo tiene el mismo seudónimo en todo el informe, pero no
   se puede revertir. La pantalla y el `--log` muestran los datos reales. En la GUI es la
   casilla *Anonimizar al exportar*.
 - **Registro**: el progreso y los avisos salen por stderr (`[*]`, `[!]`; `[.]` con `-v`) y,
   con `--log`, a un fichero con todo el detalle. La tabla y el resumen salen por stdout.
+- **`--cve`**: busca vulnerabilidades conocidas en [NVD](https://nvd.nist.gov) por el modelo
+  (pasado a nombre CPE) y marca las que están en el catálogo [CISA KEV](https://www.cisa.gov/known-exploited-vulnerabilities-catalog)
+  (explotadas activamente). Cada CVE lleva su certeza: **modelo+firmware** (la versión
+  anunciada es vulnerable), **modelo** (sin versión) o **fabricante (suposición)**: si solo se
+  sabe la marca, los CVE recientes (2 años) de su hardware, como mucho 5, que hablan de otros
+  equipos de la marca y no de este. Los que la versión descarta no salen. Van en una sección
+  aparte de las alertas; solo pasa a alerta ALTA un CVE en KEV con certeza modelo+firmware. A internet solo se envían modelos y fabricantes, nunca MAC/IP/hostname. Caché de 24 h en
+  `~/.cache/iot_scanner` (`--cve-cache`). Sin clave de NVD espera 6 s entre consultas; con
+  [clave](https://nvd.nist.gov/developers/request-an-api-key), 0,6 s: pégala en
+  `programa/nvd_api_key.txt` (está en `.gitignore`, no se sube) o en la variable `NVD_API_KEY`.
+  La clave solo se envía a NVD y no sale en el registro.
 - **Reglas**: las reglas de identificación, sus pesos y umbrales están en
   `iot_scanner/rules.json`; se pueden editar o cargar otro fichero con `--rules`.
 
@@ -110,9 +127,10 @@ python -m tests.lab_packets          # la regenera en ../ejemplos/ejemplo_lab.pc
 | Hito | Módulo | Qué hace |
 |---|---|---|
 | 1 | `iot_scanner/discovery.py` | Autodetección de interfaz y CIDR, ARP scan, fabricante por OUI (detecta MAC aleatorias). Si nadie responde al ARP (aislamiento de clientes) se pasa a modo solo-escucha. |
-| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS, banners SSDP y vendor class DHCP. Todo texto de red se sanea. |
+| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS y sus registros TXT (modelo y firmware), banners SSDP y vendor class DHCP. Huella DHCP (opción 55) y aviso si una IPv6 global lleva la MAC dentro (EUI-64). De SSDP, el tipo UPnP (`NT`/`ST`) y las versiones del `SERVER`, separando firmware del producto y librerías (miniupnpd, BusyBox). Todo texto de red se sanea. |
 | 3 | `iot_scanner/heuristics.py` + `rules.json` | Reglas en JSON (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...), validadas al cargar. Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
-| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...). Anonimización opcional de lo exportado. |
+| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...) y por UPnP IGD anunciado (el router abre puertos a quien se lo pida) o IPv6 global con la MAC dentro. Anonimización opcional de lo exportado. |
+| + | `iot_scanner/vulns.py` | `--cve`: modelo → CPE (diccionario de NVD), librerías de los banners (miniupnpd, libupnp, BusyBox), CVE de NVD, nivel de certeza por versión, marca de CISA KEV, caché y ritmo de consultas. |
 
 `iot_scanner/device.py` define el modelo de datos común, `iot_scanner/logsetup.py` el registro, `net_device_scanner.py` es la CLI y
 `gui.py` la interfaz gráfica (tkinter, incluido en Python; reutiliza las funciones de la CLI).
@@ -121,7 +139,7 @@ python -m tests.lab_packets          # la regenera en ../ejemplos/ejemplo_lab.pc
 
 ```bash
 cd programa
-python -m pytest -q --cov=iot_scanner --cov-report=term-missing   # cobertura del paquete: 92 %
+python -m pytest -q --cov=iot_scanner --cov-report=term-missing   # cobertura del paquete: 94 %
 python -m flake8 --max-line-length 120 iot_scanner net_device_scanner.py gui.py tests
 python -m bandit -q -r . -s B101                                   # B101 = assert de pytest
 ```
@@ -133,7 +151,8 @@ Los tests usan tráfico sintético (`tests/lab_packets.py`): cámara Hikvision (
 Chromecast, enchufe Tuya, sensor ESP32 con MQTT, bombilla Matter por IPv6 y un
 dispositivo con hostname y SNI maliciosos para comprobar el saneado; además, un dispositivo
 por cada regla restante (altavoz, CoAP, Thread, impresora, NAS, Apple, Windows y Android),
-así que el tráfico sintético ejercita las 15 reglas. No hace falta root ni red.
+así que el tráfico sintético ejercita las 15 reglas. No hace falta root ni red: los tests de
+`--cve` usan respuestas de NVD y KEV simuladas.
 
 Varias mejoras de calidad y privacidad (reglas en JSON, logging, `--anonymize`,
 `--arp-interval`, dependencias fijadas, CI con cobertura y el filtro de la GUI) fueron
@@ -152,5 +171,8 @@ propuestas por **Qwen** e implementadas con Claude; el detalle está en `docs/AI
 - `--anonymize` no oculta las consultas DNS ni el SNI (son evidencia técnica, pero en un móvil
   pueden revelar hábitos de navegación) y no afecta a la pantalla ni al `--log`.
 - Los dispositivos con MAC aleatoria no tienen fabricante OUI.
+- `--cve` solo encuentra dispositivos que anuncian un modelo con nombre CPE en NVD; sin
+  versión, "certeza modelo" quiere decir que ese modelo ha tenido el fallo, no que este
+  equipo lo tenga (puede estar actualizado).
 - La autodetección limita la red como mucho a /24 para no barrer redes enormes;
   usa `-n` para otro rango.

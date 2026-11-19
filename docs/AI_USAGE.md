@@ -15,6 +15,11 @@ depende de IA en tiempo de ejecución.
 | 2026-10-25 | Claude (Claude Code) | Interfaz gráfica | `gui.py` (tkinter) y `abrir_interfaz.bat`; 3 tests nuevos. Revisada con captura de pantalla sobre el pcap de ejemplo. |
 | 2026-10-26 | Claude (Claude Code) | Seguridad y ampliación | Correcciones de `bandit`; WS-Discovery/ONVIF; escucha en vivo parable (`AsyncSniffer`, botón Detener, Ctrl+C); 8 tests nuevos. Pedido por el autor ("vamos a solucionar lo demás") tras revisar los pendientes. |
 | 2026-10-26 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Mejoras de calidad y privacidad | Qwen propuso una lista de mejoras; el autor eligió 8 y Claude las implementó con ajustes: reglas en `rules.json` (JSON en vez de YAML), logging, `--anonymize` (HMAC con clave aleatoria en vez de hash con sal), `--arp-interval` (0,01 s configurable en vez de 0,05 s fijo), `requirements.lock`, CI de GitHub Actions con cobertura, cobertura de reglas 15/15 y filtro en la GUI; 13 tests nuevos. Descartadas: `mypy` y resultados en tiempo real. |
+| 2026-11-16 | Claude (Claude Code) | Hito 2 (TXT de mDNS) | Lectura de registros TXT: modelo y versión de firmware como base para la futura búsqueda de CVE; lista blanca de claves al anonimizar; 5 tests nuevos. Pedido por el autor ("pues añadimos la lectura de registros TXT") tras analizar con Claude qué información de firmware dejan escapar los IoT. |
+| 2026-11-16 | Claude (Claude Code) | Búsqueda de CVE (`--cve`) | `vulns.py`: NVD por CPE + CISA KEV con caché, ritmo de NVD y nivel de certeza (modelo / modelo+firmware); CVE aparte de las alertas en consola, JSON, CSV y GUI; 19 tests nuevos con NVD/KEV simulados. Diseño propuesto por Claude y aceptado por el autor ("si me parece mejor separarlo"); Claude cambió el plan inicial al comprobar que buscar en KEV por fabricante solo daba ruido. |
+| 2026-11-16 | Claude (Claude Code) | `--cve`: nivel fabricante y ejemplos | Clave de NVD en un fichero ignorado por git; nivel "fabricante (suposición)" con CVE recientes de hardware de la marca; `ejemplos/` regenerado; 10 tests nuevos. Pedido por el autor ("añade también los del nivel 2, con suposiciones que sean vulnerabilidades recientes"); Claude lo limitó a hardware (`h:`) y 2 años tras comprobar que `o:` daba cientos de CVE de Android. |
+| 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | SSDP y modelo de amenazas | Segunda lista de Qwen; el autor eligió 3: tipos UPnP (NT/ST) con regla y alerta IGD, versiones del banner SSDP y de DHCP (firmware frente a librería, con CVE de miniupnpd/libupnp/BusyBox) y `docs/THREAT_MODEL.md`; 18 tests nuevos. Descartadas: sal persistente para `--anonymize`, Aho-Corasick, `mypy`; hilo de la GUI y bridges Hue/HomeKit ya estaban. |
+| 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Huella DHCP y EUI-64 | Tercera lista de Qwen; el autor eligió 2: huella DHCP (opción 55, campo `dhcp_fp` en las reglas) y alerta por IPv6 global con la MAC dentro (EUI-64); 20 tests nuevos. La tercera propuesta (TXT de mDNS) ya estaba hecha desde el 2026-11-16. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -57,17 +62,42 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 | `mypy` | Descartada por el autor: el código casi no tiene anotaciones y Scapy no tiene tipos. |
 | Resultados en tiempo real en la GUI | Descartada por el autor: mucho coste frente al Hito 6. |
 
+### Segunda lista de Qwen (2026-11-19)
+
+> El autor pegó otra lista de mejoras de **Qwen** (seguridad y privacidad, rendimiento,
+> reglas y documentación para la defensa). Claude comparó cada una con el código y el autor
+> eligió cuáles hacer.
+
+| Propuesta de Qwen | Qué se hizo y por qué |
+|---|---|
+| `--anonymize-salt fichero` para comparar informes | **No elegida** por el autor. Nota de Claude: con una clave guardada, quien tenga el fichero puede deshacer los seudónimos probando todas las IP; sería una clave HMAC en un fichero ignorado por git, no una "sal" |
+| Versión de firmware en banners HTTP, SSDP y mDNS | Hecho para **SSDP** (`SERVER`) y **DHCP** (`udhcp`), separando núcleo, protocolo, librería y producto. mDNS ya estaba (TXT, 2026-11-16). HTTP **no**: leer un banner web es conectarse al dispositivo (escaneo activo) |
+| Aho-Corasick en `heuristics.py` | **No elegida**: con 15 reglas no hay lentitud medida, añade una dependencia compilada y perdería el anclaje a inicio de palabra `(?<![a-z])` |
+| Type hints + `mypy` en la CI | **No elegida** (ya se descartó el 2026-10-26) |
+| Captura de la GUI en otro hilo | **Ya estaba**: el análisis corre en un `threading.Thread` (`gui.py`) con `stop_event` |
+| Regla UPnP IGD "en WS-Discovery o SSDP" | Hecho, pero solo en **SSDP**: `InternetGatewayDevice` no viaja en WS-Discovery. Campo `upnp` en las reglas (+3) y alerta MEDIA |
+| Bridges Zigbee/Matter (`_zigbee._tcp`, `_hap._tcp`) | **Ya estaba** `_hap._tcp` y `_hue._tcp` en la regla de enchufes y bombillas. `_hap._tcp` es HomeKit (no Zigbee) y `_zigbee._tcp` no es un servicio estándar |
+| `docs/THREAT_MODEL.md` | Hecho, con STRIDE y citando el código de cada mitigación. Al redactarlo salió un riesgo no mitigado (sin límite de dispositivos) |
+
+### Tercera lista de Qwen (2026-11-19)
+
+| Propuesta de Qwen | Qué se hizo y por qué |
+|---|---|
+| Huella DHCP con la opción 55 ("o `requested_addr`") | Hecho con la **opción 55** (`param_req_list`); `requested_addr` es la opción 50, la IP pedida, y no sirve de huella. Campo `dhcp_fp` en las reglas (+3, coincidencia exacta). Sin reglas todavía: las huellas reales saldrán del Hito 6 (no se inventan) |
+| Marcar EUI-64 en direcciones link-local o globales | Hecho **solo para globales** (`2000::/3`) y con la MAC del propio equipo: en link-local EUI-64 es lo normal y no filtra nada fuera de la red local. Alerta BAJA |
+| Leer los TXT de mDNS | **Ya estaba** desde el 2026-11-16 (`_parse_txt`, `models`, `firmware`, lista blanca al anonimizar) |
+
 ### Prompt de la interfaz gráfica (2026-10-25)
 
 > "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 55 casos sobre tráfico sintético (todos pasan); cobertura del paquete
-  `iot_scanner` 92 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
+- **Pruebas funcionales:** `pytest` con 127 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+  `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la
-  red (hostname DHCP/mDNS, banners SSDP, SNI de TLS) se sanea y recorta; el parser
+  red (hostname DHCP/mDNS, banners SSDP, SNI de TLS, TXT de mDNS) se sanea; lo que llega de NVD también y recorta; el parser
   del ClientHello comprueba límites y devuelve `None` si el mensaje está cortado; el CSV escapa
   celdas que empiezan por `=`, `+`, `-` o `@`.
 - **Linting:** `flake8` sin avisos. `bandit` 1.9.4 (Python 3.14) sin avisos con

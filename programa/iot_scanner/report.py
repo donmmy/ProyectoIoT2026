@@ -4,6 +4,8 @@ Hito 4 — Exportación e informe.
 - Tabla por consola y exportación a JSON/CSV.
 - Resumen final: recuento de dispositivos, protocolos más comunes y alertas
   simples (puertos sensibles expuestos, protocolos en claro).
+- Vulnerabilidades conocidas (--cve) en una sección aparte: una alerta es un hecho
+  observado en el tráfico; un CVE depende de cuánto sabemos del modelo y su versión.
 """
 
 import csv
@@ -43,6 +45,18 @@ SENSITIVE_CLIENT = {
     5683: ("BAJA",  "Habla CoAP sin DTLS"),
 }
 
+# Tipos UPnP anunciados por SSDP que merecen revisión: tipo -> (severidad, motivo).
+# Un IGD (Internet Gateway Device) deja que cualquier equipo de la LAN abra puertos del
+# router hacia internet sin autenticarse (lo usan botnets y malware para exponer servicios)
+SENSITIVE_UPNP = {
+    "InternetGatewayDevice": ("MEDIA", "UPnP IGD anunciado: cualquier equipo de la LAN puede abrir "
+                                       "puertos del router hacia internet sin autenticación"),
+    "WANIPConnection": ("MEDIA", "UPnP WANIPConnection anunciado: permite pedir redirecciones de "
+                                 "puertos al router (AddPortMapping)"),
+    "WANPPPConnection": ("MEDIA", "UPnP WANPPPConnection anunciado: permite pedir redirecciones de "
+                                  "puertos al router (AddPortMapping)"),
+}
+
 SEVERITY_ORDER = {"ALTA": 0, "MEDIA": 1, "BAJA": 2}
 
 
@@ -78,8 +92,36 @@ def build_alerts(devices):
                 sev, msg = SENSITIVE_CLIENT[port]
                 alerts.append({"severity": sev, "device": who, "mac": dev.mac,
                                "port": port, "message": msg})
+        for t in sorted(dev.upnp_types & SENSITIVE_UPNP.keys()):
+            sev, msg = SENSITIVE_UPNP[t]
+            alerts.append({"severity": sev, "device": who, "mac": dev.mac, "port": 1900, "message": msg})
+        if dev.eui64_global:
+            alerts.append({"severity": "BAJA", "device": who, "mac": dev.mac, "port": None,
+                           "message": "IPv6 global con la MAC dentro (EUI-64): se le puede seguir de una "
+                                      "red a otra; usar direcciones temporales (RFC 4941/7217)"})
+        # Un CVE solo pasa a alerta si es tan seguro y urgente como un Telnet abierto:
+        # explotado activamente (KEV) y con la versión anunciada dentro del rango vulnerable
+        for c in dev.cves:
+            if c["kev"] and c["certainty"] == "modelo+firmware":
+                alerts.append({"severity": "ALTA", "device": who, "mac": dev.mac, "port": None,
+                               "message": f"{c['id']} explotado activamente (CISA KEV) "
+                                          "y la versión anunciada es vulnerable"})
     alerts.sort(key=lambda a: (SEVERITY_ORDER[a["severity"]], a["device"]))
     return alerts
+
+
+def build_cve_list(devices):
+    """Todos los CVE en una lista plana (para la consola, la GUI y el resumen)."""
+    rows = [{"device": dev.ip or dev.mac, "mac": dev.mac, **c}
+            for dev in devices.values() for c in dev.cves]
+    rank = {"modelo+firmware": 0, "modelo": 1, "fabricante": 2}
+    rows.sort(key=lambda r: (rank.get(r["certainty"], 3), not r["kev"], -(r["cvss"] or 0)))
+    return rows
+
+
+def certainty_label(certainty):
+    """El nivel fabricante se muestra siempre como lo que es: una suposición."""
+    return "fabricante (suposición)" if certainty == "fabricante" else certainty
 
 
 def build_summary(devices, meta=None):
@@ -94,6 +136,7 @@ def build_summary(devices, meta=None):
         "top_protocols": protocols.most_common(10),
         "device_types": types.most_common(),
         "alerts": build_alerts(devices),
+        "cves": build_cve_list(devices),
     }
 
 
@@ -127,6 +170,19 @@ def make_pseudonymizer(key=None):
     return pseudo
 
 
+# Claves TXT de mDNS que se conservan al anonimizar (lista blanca: minimización). Las
+# demás se quitan porque suelen identificar al equipo o a su dueño: id, deviceid, mac,
+# serial... o nombres que pone el usuario, como fn=Salón de Oscar o note=Despacho.
+SAFE_TXT_KEYS = {"md", "model", "ty", "product", "usb_mdl", "app", "fw_version", "fw_ver",
+                 "fw_id", "firmware", "version", "ver", "osvers", "srcvers", "txtvers", "ve",
+                 "ca", "st", "platform", "board", "arch", "gen", "pdl", "tls", "c#", "s#",
+                 "ci", "ff", "sf"}
+
+
+def _keep_txt(entry):
+    return entry.partition("=")[0] in SAFE_TXT_KEYS
+
+
 def _anonymize_banner(banner, pseudo):
     # El nombre ONVIF lo pone el usuario ("HIKVISION Entrada") y puede delatar dónde está
     if banner.startswith("ONVIF:name="):
@@ -144,7 +200,8 @@ def anonymize(devices, meta=None, key=None):
             mac=pseudo("mac", d.mac), ip=pseudo("ip", d.ip), hostname=pseudo("host", d.hostname),
             ipv6={pseudo("ip6", a) for a in d.ipv6},
             banners={_anonymize_banner(b, pseudo) for b in d.banners},
-            labels=[dict(c) for c in d.labels])
+            mdns_txt={t for t in d.mdns_txt if _keep_txt(t)},
+            labels=[dict(c) for c in d.labels], cves=[dict(c) for c in d.cves])
         out[new.mac] = new
     meta = dict(meta or {})
     if meta.get("iface"):
@@ -194,8 +251,33 @@ def print_summary(summary):
     if not alerts:
         print("   (ninguna)")
     for a in alerts:
-        print(f"   [{a['severity']:<5}] {a['device']:<16} puerto {a['port']:<5} {a['message']}")
+        port = a["port"] if a["port"] is not None else "-"
+        print(f"   [{a['severity']:<5}] {a['device']:<16} puerto {port:<5} {a['message']}")
+    print_cves(summary)
     print()
+
+
+def print_cves(summary):
+    stats = summary.get("cve_search")
+    if not stats:
+        print("\nVulnerabilidades conocidas: no buscadas (usa --cve; necesita internet)")
+        return
+    cves = summary.get("cves", [])
+    print(f"\nVulnerabilidades conocidas ({len(cves)}, de NVD; certeza modelo+firmware > modelo > fabricante):")
+    if not cves:
+        print("   (ninguna)")
+    for c in cves:
+        kev = "KEV" if c["kev"] else ""
+        score = c["cvss"] if c["cvss"] is not None else "-"
+        print(f"   {c['id']:<16} {score!s:<5} {kev:<4} {certainty_label(c['certainty']):<24} "
+              f"{c['device']:<16} {c['product']}")
+    print(f"   Por modelo: {stats['searched']} dispositivos; "
+          f"por librería (banner): {stats.get('by_software', 0)}; "
+          f"solo por fabricante: {stats['by_vendor']} "
+          f"(CVE recientes de su hardware, no confirmados); sin datos: {stats['not_searched']}; "
+          f"{stats['discarded_by_version']} CVE descartados por versión.")
+    if stats.get("errors"):
+        print(f"   [!] {stats['errors']} consultas fallaron: el resultado puede estar incompleto.")
 
 
 # ----------------------------------------------------------------------
@@ -215,13 +297,18 @@ def export_json(devices, summary, path):
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers", "wsd_types"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt",
+              "upnp_types", "software", "dhcp_fingerprint", "eui64_global", "cves"]
 
 
 def _csv_safe(value):
     """Evita inyección de fórmulas al abrir el CSV en Excel/LibreOffice."""
     s = str(value)
     return "'" + s if s[:1] in ("=", "+", "-", "@") else s
+
+
+def _cve_cell(c):
+    return f"{c['id']} ({c['cvss']}, {certainty_label(c['certainty'])}{', KEV' if c['kev'] else ''})"
 
 
 def export_csv(devices, path):
@@ -246,6 +333,14 @@ def export_csv(devices, path):
                 "tls_sni": " ".join(sorted(d.tls_sni)),
                 "ntp_servers": " ".join(sorted(d.ntp_servers)),
                 "wsd_types": " ".join(sorted(d.wsd_types)),
+                "models": " | ".join(sorted(d.models)),
+                "firmware": " | ".join(sorted(d.firmware)),
+                "mdns_txt": " | ".join(sorted(d.mdns_txt)),
+                "upnp_types": " ".join(sorted(d.upnp_types)),
+                "software": " ".join(sorted(d.software)),
+                "dhcp_fingerprint": " | ".join(sorted(d.dhcp_fingerprint)),
+                "eui64_global": "sí" if d.eui64_global else "",
+                "cves": " | ".join(_cve_cell(c) for c in d.cves),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})
     log.info("CSV guardado en %s", path)

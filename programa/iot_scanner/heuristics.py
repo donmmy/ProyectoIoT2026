@@ -57,6 +57,8 @@ class Rule:
     text: str | None = None      # regex sobre hostname, banners y fabricante
     domains: str | None = None   # regex sobre consultas DNS y SNI de TLS
     wsd: set = field(default_factory=set)            # tipos WS-Discovery anunciados
+    upnp: set = field(default_factory=set)           # tipos UPnP anunciados por SSDP (NT/ST)
+    dhcp_fp: set = field(default_factory=set)        # huellas DHCP opción 55 exactas ("1,3,6,15")
     _text_re: re.Pattern | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
@@ -72,7 +74,7 @@ class Rule:
 # ----------------------------------------------------------------------
 
 _PORT_FIELDS = ("served_ports", "client_ports")
-_NAME_FIELDS = ("mdns", "wsd")
+_NAME_FIELDS = ("mdns", "wsd", "upnp", "dhcp_fp")
 _REGEX_FIELDS = ("text", "domains")
 _RULE_FIELDS = {"label", *_PORT_FIELDS, *_NAME_FIELDS, *_REGEX_FIELDS}
 
@@ -178,11 +180,20 @@ def evaluate_rule(rule, dev):
     # El tipo WS-Discovery lo declara el propio dispositivo y es muy específico
     for t in sorted(rule.wsd & dev.wsd_types):
         evidence.append((f"WS-Discovery {t}", WEIGHT_STRONG))
+    # Igual con el tipo UPnP que anuncia por SSDP (NOTIFY o respuesta, no M-SEARCH). Un
+    # router anuncia a la vez el dispositivo (IGD) y sus servicios (WANIPConnection...):
+    # es una sola pista, así que cuenta una vez
+    upnp = sorted(rule.upnp & dev.upnp_types)
+    if upnp:
+        evidence.append((f"UPnP {', '.join(upnp)}", WEIGHT_STRONG))
+    # Huella DHCP: la lista y el orden de opciones los fija el cliente DHCP del sistema
+    for fp in sorted(rule.dhcp_fp & dev.dhcp_fingerprint):
+        evidence.append((f"huella DHCP {fp}", WEIGHT_STRONG))
 
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el
         # fabricante de la tarjeta de red: el fabricante no dice el tipo de dispositivo
-        own = " | ".join(filter(None, [dev.hostname, *sorted(dev.banners)]))
+        own = " | ".join(filter(None, [dev.hostname, *sorted(dev.models), *sorted(dev.banners)]))
         m = rule._text_re.search(own)
         if m:
             evidence.append((f"texto '{m.group(0)}'", WEIGHT_MEDIUM))

@@ -8,11 +8,14 @@ Hito 2 — Sniffing pasivo y extracción de metadatos.
   IPv6 (direcciones; Matter/Thread se anuncian por mDNS sobre IPv6).
 - WS-Discovery / ONVIF (UDP 3702, multicast): tipo de dispositivo y modelo que
   anuncian las cámaras IP, impresoras y equipos Windows.
+- Registros TXT de mDNS: pares clave=valor con los que muchos dispositivos anuncian
+  modelo y versión de firmware (Shelly, ESPHome, Chromecast, impresoras, HomeKit).
 
 Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
+import ipaddress
 import logging
 import re
 import time
@@ -49,6 +52,15 @@ _WSD_TYPES = re.compile(r"<(?:[\w-]+:)?Types[^>]{0,256}>([^<]{1,1024})<")
 _WSD_SCOPES = re.compile(r"<(?:[\w-]+:)?Scopes[^>]{0,256}>([^<]{1,4096})<")
 ONVIF_SCOPE_KEYS = ("name", "hardware", "mfr")
 
+# Registros TXT de mDNS (DNS-SD, RFC 6763): claves que, según el fabricante, dicen el
+# modelo o la versión del firmware. Solo se interpretan estas; el resto se guarda tal cual.
+# Ojo a las que parecen versión y no lo son: "txtvers" es la versión del formato del TXT
+# y "ve" en Chromecast la del protocolo, no la del firmware.
+TXT_TYPE = 16
+TXT_MODEL_KEYS = ("md", "model", "ty", "product", "usb_mdl", "app")
+TXT_FIRMWARE_KEYS = ("fw_version", "fw_ver", "fw_id", "firmware", "version", "ver", "osvers", "srcvers")
+TXT_MAX_PAIRS = 32   # pares por registro que se leen (un TXT puede traer muchos)
+
 _SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")
 
 
@@ -83,15 +95,66 @@ def _dns_records(section):
     return out
 
 
+# Opción 55 (Parameter Request List, RFC 2132): qué opciones pide el cliente y en qué
+# orden. Depende del cliente DHCP del sistema (Android, Windows, udhcp, lwIP de un ESP32...),
+# así que es una huella pasiva del SO/firmware. Se guarda como "1,3,6,15" (formato habitual
+# de las bases de huellas, p. ej. Fingerbank).
+DHCP_FP_MAX = 64
+
+
+def dhcp_fingerprint(value):
+    if isinstance(value, (bytes, bytearray)):
+        value = list(value)
+    if not isinstance(value, (list, tuple)):
+        value = [value]
+    codes = [v for v in value[:DHCP_FP_MAX] if isinstance(v, int) and 0 <= v <= 255]
+    return ",".join(map(str, codes)) or None
+
+
 def _parse_dhcp(pkt, dev):
     dev.protocols.add("DHCP")
     for opt in pkt[DHCP].options:
         if not isinstance(opt, tuple) or len(opt) < 2:
             continue
-        if opt[0] == "hostname":
+        if opt[0] == "param_req_list":
+            dev.add("dhcp_fingerprint", dhcp_fingerprint(opt[1] if len(opt) == 2 else list(opt[1:])))
+        elif opt[0] == "hostname":
             dev.hostname = sanitize_text(opt[1]) or dev.hostname
         elif opt[0] == "vendor_class_id":
-            dev.add("banners", "DHCP:" + (sanitize_text(opt[1]) or ""))
+            vendor_class = sanitize_text(opt[1]) or ""
+            dev.add("banners", "DHCP:" + vendor_class)
+            m = _DHCP_CLIENT.match(vendor_class)
+            if m:   # versión del cliente DHCP (librería), no del firmware
+                dev.add("software", f"{m.group(1).lower()}/{m.group(2)}")
+
+
+# EUI-64 (RFC 4291, apéndice A): el identificador de interfaz (últimos 64 bits) se forma con
+# la MAC partida en dos, ff:fe en medio y el bit U/L invertido. En una dirección link-local
+# (fe80::) es lo normal y no filtra nada: no sale de la red local, donde la MAC ya se ve. En
+# una dirección GLOBAL (2000::/3) sí: viaja a internet y permite seguir al dispositivo de una
+# red a otra. Las direcciones temporales (RFC 4941) y estables opacas (RFC 7217) lo evitan.
+GLOBAL_UNICAST = ipaddress.IPv6Network("2000::/3")
+
+
+def eui64_mac(addr):
+    """MAC incrustada en una IPv6 con EUI-64, o None."""
+    try:
+        iid = ipaddress.IPv6Address(addr).packed[8:]
+    except ValueError:
+        return None
+    if iid[3:5] != b"\xff\xfe":
+        return None
+    mac = bytes([iid[0] ^ 0x02]) + iid[1:3] + iid[5:8]
+    return ":".join(f"{b:02x}" for b in mac)
+
+
+def leaks_mac(addr, mac):
+    """True si es una IPv6 global que lleva dentro la MAC real del dispositivo."""
+    try:
+        is_global = ipaddress.IPv6Address(addr) in GLOBAL_UNICAST
+    except ValueError:
+        return False
+    return is_global and eui64_mac(addr) == (mac or "").lower()
 
 
 def _parse_mdns(pkt, dev):
@@ -111,6 +174,33 @@ def _parse_mdns(pkt, dev):
         # Respuesta A/AAAA (type 1 / 28) "mi-camara.local" -> hostname
         if dns.qr == 1 and getattr(rr, "type", None) in (1, 28) and name.endswith(".local"):
             dev.hostname = dev.hostname or sanitize_text(name[: -len(".local")])
+        # Respuesta TXT (type 16): lo que el dispositivo cuenta de sí mismo
+        if dns.qr == 1 and getattr(rr, "type", None) == TXT_TYPE:
+            _parse_txt(rr, dev)
+
+
+def _txt_pairs(rdata):
+    """Normaliza el rdata de un TXT (lista de bytes en Scapy >= 2.5) a [(clave, valor)]."""
+    items = rdata if isinstance(rdata, list) else [rdata]
+    pairs = []
+    for item in items[:TXT_MAX_PAIRS]:
+        text = item.decode("utf-8", errors="ignore") if isinstance(item, bytes) else str(item)
+        key, sep, value = text.partition("=")
+        key = sanitize_text(key, 32)
+        if key:   # las claves de DNS-SD no distinguen mayúsculas (RFC 6763, 6.4)
+            pairs.append((key.lower(), sanitize_text(value, 96) if sep else None))
+    return pairs
+
+
+def _parse_txt(rr, dev):
+    for key, value in _txt_pairs(getattr(rr, "rdata", None)):
+        dev.add("mdns_txt", f"{key}={value}" if value is not None else key)
+        if not value:
+            continue
+        if key in TXT_MODEL_KEYS:
+            dev.add("models", value.strip("() "))
+        elif key in TXT_FIRMWARE_KEYS:
+            dev.add("firmware", value)
 
 
 def _parse_dns(pkt, dev):
@@ -123,15 +213,73 @@ def _parse_dns(pkt, dev):
                 dev.add("dns_queries", name.rstrip(".").lower())
 
 
+# Tipo UPnP en NT (NOTIFY) o ST (respuesta): urn:schemas-upnp-org:device:InternetGatewayDevice:1
+_UPNP_URN = re.compile(r"urn:[\w.-]{1,64}:(?:device|service):([A-Za-z0-9_-]{1,64}):\d{1,3}")
+
+# Banner SERVER de SSDP (UPnP 1.0, apartado 1.1.2): "SO/versión UPnP/1.0 producto/versión".
+# Cada pieza "nombre/versión" se clasifica: el SO (versión del núcleo, no del firmware),
+# el propio protocolo UPnP, una librería conocida (versión de la librería) o el producto
+# (esa sí es la versión del firmware del fabricante).
+_NAME_VERSION = re.compile(r"([A-Za-z][\w .+-]{0,40}?)/(\d[\w.+-]{0,24})")
+OS_NAMES = {"linux", "windows", "microsoft-windows", "android", "darwin", "freertos", "unix", "ecos",
+            "vxworks", "threadx", "zephyr", "os", "posix"}
+PROTOCOL_NAMES = {"upnp", "dlnadoc", "http", "dlna"}
+# Librerías: su versión no es la del firmware, pero tienen CVE propios (vulns.SOFTWARE_CPE)
+LIBRARY_NAMES = {"miniupnpd", "libupnp", "portable sdk for upnp devices", "intel sdk for upnp devices",
+                 "upnp-device-host", "rompager", "allegro-software-rompager", "goahead", "boa",
+                 "lighttpd", "busybox", "udhcp", "dhcpcd", "platinum", "cling"}
+# Vendor class de DHCP con la versión del cliente DHCP: "udhcp 1.24.1" (BusyBox), "dhcpcd-9.4.1:..."
+_DHCP_CLIENT = re.compile(r"^(udhcp|dhcpcd)[ -](\d[\w.]{0,24})", re.IGNORECASE)
+
+
+def parse_server_banner(banner):
+    """[(tipo, nombre, versión)] con tipo "so", "protocolo", "libreria" o "producto"."""
+    out = []
+    for i, (name, version) in enumerate(_NAME_VERSION.findall(banner or "")):
+        name = name.strip(" ,")
+        low = name.lower()
+        if low in PROTOCOL_NAMES:
+            kind = "protocolo"
+        elif low in LIBRARY_NAMES:
+            kind = "libreria"
+        elif i == 0 and (low in OS_NAMES or low.split("-")[0] in OS_NAMES):
+            kind = "so"
+        else:
+            kind = "producto"
+        out.append((kind, name, version))
+    return out
+
+
+def _add_versions(dev, banner):
+    for kind, name, version in parse_server_banner(banner):
+        if kind == "libreria":
+            dev.add("software", f"{name.lower()}/{version}")
+        elif kind == "producto":
+            dev.add("firmware", version)
+
+
 def _parse_ssdp(pkt, dev):
     dev.protocols.add("SSDP")
     if not pkt.haslayer(Raw):
         return
-    text = pkt[Raw].load.decode("utf-8", errors="ignore")
-    for line in text.split("\r\n"):
+    text = pkt[Raw].load[:4096].decode("utf-8", errors="ignore")
+    lines = text.split("\r\n")
+    first = lines[0].strip().upper()
+    # NOTIFY y la respuesta 200 OK los manda el dispositivo que se anuncia; un M-SEARCH
+    # es de quien busca: su ST es lo que busca, no lo que es (como Probe en WS-Discovery)
+    announces = first.startswith("NOTIFY") or first.startswith("HTTP/")
+    for line in lines[1:64]:
         key, _, val = line.partition(":")
-        if key.strip().upper() in ("SERVER", "USER-AGENT"):
-            dev.add("banners", "SSDP:" + (sanitize_text(val, 96) or ""))
+        key = key.strip().upper()
+        if key in ("SERVER", "USER-AGENT"):
+            banner = sanitize_text(val, 96) or ""
+            dev.add("banners", "SSDP:" + banner)
+            if key == "SERVER" and announces:
+                _add_versions(dev, banner)
+        elif key in ("NT", "ST") and announces:
+            m = _UPNP_URN.search(val)
+            if m:
+                dev.add("upnp_types", m.group(1))
 
 
 def _parse_ntp(pkt, dev, ip_dst):
@@ -255,6 +403,8 @@ class PassiveSniffer:
             ip_dst = pkt[IPv6].dst
             if not is_unspecified(pkt[IPv6].src):
                 dev.add("ipv6", pkt[IPv6].src)
+                if not dev.eui64_global and leaks_mac(pkt[IPv6].src, src_mac):
+                    dev.eui64_global = True
 
         sport = dport = None
         if pkt.haslayer(TCP):

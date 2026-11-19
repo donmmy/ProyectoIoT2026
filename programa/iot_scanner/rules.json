@@ -70,6 +70,7 @@
       "served_ports": [1900, 2869, 49152],
       "client_ports": [1900],
       "mdns": ["_dlna._tcp"],
+      "upnp": ["MediaRenderer", "MediaServer", "AVTransport", "RenderingControl", "ContentDirectory"],
       "text": "upnp|dlna|media ?server"
     },
     {
@@ -82,6 +83,7 @@
     {
       "label": "Router / gateway",
       "served_ports": [53, 67, 1900],
+      "upnp": ["InternetGatewayDevice", "WANConnectionDevice", "WANDevice", "WANIPConnection", "WANPPPConnection"],
       "text": "router|gateway|fritz|mikrotik|ubiquiti|tp-?link|netgear|asus|huawei|zte|sagemcom|arris|askey|mitrastar"
     },
     {

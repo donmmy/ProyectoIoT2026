@@ -1,49 +1,62 @@
 {
   "summary": {
-    "generated_at": "2026-10-25T17:23:34+00:00",
+    "generated_at": "2026-11-19T16:22:50+00:00",
     "mode": "pcap",
     "pcap": "../ejemplos/ejemplo_lab.pcap",
-    "device_count": 6,
-    "identified_count": 6,
+    "cve_search": {
+      "searched": 3,
+      "by_software": 2,
+      "by_vendor": 12,
+      "not_searched": 0,
+      "no_cpe": 0,
+      "cves": 46,
+      "kev": 0,
+      "discarded_by_version": 36,
+      "requests": 20,
+      "errors": 1,
+      "kev_loaded": true
+    },
+    "device_count": 15,
+    "identified_count": 15,
     "top_protocols": [
       [
-        "TCP",
-        5
+        "UDP",
+        15
       ],
       [
-        "UDP",
-        5
+        "mDNS",
+        8
+      ],
+      [
+        "TCP",
+        7
+      ],
+      [
+        "DHCP",
+        6
       ],
       [
         "DNS",
-        2
+        4
+      ],
+      [
+        "WS-Discovery",
+        3
+      ],
+      [
+        "SSDP",
+        3
+      ],
+      [
+        "IPv6",
+        3
       ],
       [
         "TLS",
         2
       ],
       [
-        "mDNS",
-        2
-      ],
-      [
-        "DHCP",
-        2
-      ],
-      [
         "NTP",
-        1
-      ],
-      [
-        "ARP",
-        1
-      ],
-      [
-        "SSDP",
-        1
-      ],
-      [
-        "IPv6",
         1
       ]
     ],
@@ -71,6 +84,42 @@
       [
         "Dispositivo Matter",
         1
+      ],
+      [
+        "Altavoz / asistente inteligente",
+        1
+      ],
+      [
+        "Dispositivo CoAP (IoT restringido)",
+        1
+      ],
+      [
+        "Border router Thread / controlador Matter",
+        1
+      ],
+      [
+        "Impresora",
+        1
+      ],
+      [
+        "NAS / servidor de ficheros",
+        1
+      ],
+      [
+        "Dispositivo Apple",
+        1
+      ],
+      [
+        "Equipo Windows",
+        1
+      ],
+      [
+        "Router / gateway",
+        1
+      ],
+      [
+        "Móvil Android",
+        1
       ]
     ],
     "alerts": [
@@ -83,10 +132,31 @@
       },
       {
         "severity": "MEDIA",
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "port": 1900,
+        "message": "UPnP IGD anunciado: cualquier equipo de la LAN puede abrir puertos del router hacia internet sin autenticación"
+      },
+      {
+        "severity": "MEDIA",
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "port": 1900,
+        "message": "UPnP WANIPConnection anunciado: permite pedir redirecciones de puertos al router (AddPortMapping)"
+      },
+      {
+        "severity": "MEDIA",
         "device": "192.168.1.40",
         "mac": "24:0a:c4:00:00:04",
         "port": 1883,
         "message": "Publica en MQTT sin TLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "port": 1900,
+        "message": "UPnP activo (puede abrir puertos en el router)"
       },
       {
         "severity": "BAJA",
@@ -97,43 +167,755 @@
       },
       {
         "severity": "BAJA",
+        "device": "192.168.1.10",
+        "mac": "a4:14:37:00:00:01",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "port": 5683,
+        "message": "CoAP sin DTLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "port": 5683,
+        "message": "Habla CoAP sin DTLS"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "port": 3702,
+        "message": "WS-Discovery/ONVIF activo (anuncia modelo; revisar autenticación ONVIF)"
+      },
+      {
+        "severity": "BAJA",
         "device": "192.168.1.66",
         "mac": "00:11:22:00:00:05",
         "port": 1900,
         "message": "UPnP activo (puede abrir puertos en el router)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "b8:27:eb:00:00:13",
+        "mac": "b8:27:eb:00:00:13",
+        "port": null,
+        "message": "IPv6 global con la MAC dentro (EUI-64): se le puede seguir de una red a otra; usar direcciones temporales (RFC 4941/7217)"
+      }
+    ],
+    "cves": [
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2016-2148",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2017-02-09",
+        "summary": "Heap-based buffer overflow in the DHCP client (udhcpc) in BusyBox before 1.25.0 allows remote attackers to have unspecified impact via vectors involving OPTION…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2018-1000517",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2018-06-26",
+        "summary": "BusyBox project BusyBox wget version prior to commit 8e2174e9bd836e53c8b9c6e00d1bc6e2a718686e contains a Buffer Overflow vulnerability in Busybox wget that can…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2022-48174",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2023-08-22",
+        "summary": "There is a stack overflow vulnerability in ash.c:6030 in busybox before 1.35. In the environment of Internet of Vehicles, this vulnerability can be executed fr…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2017-16544",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2017-11-20",
+        "summary": "In the add_match function in libbb/lineedit.c in BusyBox through 1.27.2, the tab autocomplete feature of the shell, used to get a list of filenames in a direct…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2022-28391",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2022-04-03",
+        "summary": "BusyBox through 1.35.0 allows remote attackers to execute arbitrary code if netstat is used to print a DNS PTR record's value to a VT compatible terminal. Alte…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2018-1000500",
+        "cvss": 8.1,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2018-06-26",
+        "summary": "Busybox contains a Missing SSL certificate validation vulnerability in The \"busybox wget\" applet that can result in arbitrary code execution. This attack appea…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2016-2147",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2017-02-09",
+        "summary": "Integer overflow in the DHCP client (udhcpc) in BusyBox before 1.25.0 allows remote attackers to cause a denial of service (crash) via a malformed RFC1035-enco…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2016-6301",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2016-12-09",
+        "summary": "The recv_and_process_client_pkt function in networking/ntpd.c in busybox allows remote attackers to cause a denial of service (CPU and bandwidth consumption) v…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2018-20679",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2019-01-09",
+        "summary": "An issue was discovered in BusyBox before 1.30.0. An out of bounds read in udhcp components (consumed by the DHCP server, client, and relay) allows a remote at…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2019-5747",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2019-01-09",
+        "summary": "An issue was discovered in BusyBox through 1.30.0. An out of bounds read in udhcp components (consumed by the DHCP client, server, and/or relay) might allow a …"
+      },
+      {
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "id": "CVE-2019-12108",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "miniupnp_project:miniupnpd 2.1",
+        "published": "2019-05-15",
+        "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in GetOutboundPinholeTimeout in upnpsoap.c for int…"
+      },
+      {
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "id": "CVE-2019-12109",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "miniupnp_project:miniupnpd 2.1",
+        "published": "2019-05-15",
+        "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in GetOutboundPinholeTimeout in upnpsoap.c for rem…"
+      },
+      {
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "id": "CVE-2019-12111",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "miniupnp_project:miniupnpd 2.1",
+        "published": "2019-05-15",
+        "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in copyIPv6IfDifferent in pcpserver.c."
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42378",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the getvar_i function"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42379",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the next_input_file fu…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42381",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the hash_init function"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42384",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the handle_special fun…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42385",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the evaluate function"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42386",
+        "cvss": 7.2,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the nvalloc function"
+      },
+      {
+        "device": "192.168.1.1",
+        "mac": "50:c7:bf:00:00:19",
+        "id": "CVE-2026-5720",
+        "cvss": 7.1,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "miniupnp_project:miniupnpd 2.1",
+        "published": "2026-04-17",
+        "summary": "miniupnpd contains an integer underflow vulnerability in SOAPAction header parsing that allows remote attackers to cause a denial of service or information dis…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2025-60876",
+        "cvss": 6.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2025-11-10",
+        "summary": "BusyBox wget thru 1.3.7 accepted raw CR (0x0D)/LF (0x0A) and other C0 control bytes in the HTTP request-target (path/query), allowing the request line to be sp…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2015-9261",
+        "cvss": 5.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2018-07-26",
+        "summary": "huft_build in archival/libarchive/decompress_gunzip.c in BusyBox before 1.27.2 misuses a pointer, causing segfaults and an application crash during an unzip op…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2021-42376",
+        "cvss": 5.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2021-11-15",
+        "summary": "A NULL pointer dereference in Busybox's hush applet leads to denial of service when processing a crafted shell command, due to missing validation after a \\x03 …"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2025-46394",
+        "cvss": 3.3,
+        "severity": "LOW",
+        "kev": false,
+        "certainty": "modelo+firmware",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2025-04-23",
+        "summary": "In tar in BusyBox through 1.37.0, a TAR archive can have filenames hidden from a listing through the use of terminal escape sequences."
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48426",
+        "cvss": 10.0,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2024-04-05",
+        "summary": "u-boot bug that allows for u-boot shell and interrupt over UART"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48417",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "Missing Permission checks resulting in unauthorized access and Manipulation in KeyChainActivity Application"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48424",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "U-Boot shell vulnerability resulting in Privilege escalation in a production device"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-48425",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "U-Boot vulnerability resulting in persistent Code Execution"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2023-6181",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2023-12-11",
+        "summary": "An oversight in BCB handling of reboot reason that allows for persistent code execution"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13192",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a heap buffer overflow vulnerability as the IPP service did not parse attribute names pr…"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13193",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a stack buffer overflow vulnerability as the web server did not parse the cookie value p…"
+      },
+      {
+        "device": "192.168.1.112",
+        "mac": "dc:a6:32:00:00:12",
+        "id": "CVE-2017-3209",
+        "cvss": 8.1,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "busybox:busybox 1.24.1",
+        "published": "2018-07-24",
+        "summary": "The DBPOWER U818A WIFI quadcopter drone provides FTP access over its own local access point, and allows full file permissions to the anonymous user. The DBPowe…"
+      },
+      {
+        "device": "192.168.1.114",
+        "mac": "00:80:77:00:00:14",
+        "id": "CVE-2019-13194",
+        "cvss": 7.5,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "brother:hl-l2350dw",
+        "published": "2020-03-13",
+        "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by different information disclosure vulnerabilities that provided sensitive information to …"
+      },
+      {
+        "device": "192.168.1.20",
+        "mac": "f4:f5:d8:00:00:02",
+        "id": "CVE-2018-12716",
+        "cvss": 4.3,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "modelo",
+        "product": "google:chromecast",
+        "published": "2018-06-25",
+        "summary": "The API service on Google Home and Chromecast devices before mid-July 2018 does not prevent DNS rebinding attacks from reading the scan_results JSON data, whic…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2026-4149",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2026-04-11",
+        "summary": "Sonos Era 300 SMB Response Out-Of-Bounds Access Remote Code Execution Vulnerability. This vulnerability allows remote attackers to execute arbitrary code on af…"
+      },
+      {
+        "device": "192.168.1.115",
+        "mac": "00:11:32:00:00:15",
+        "id": "CVE-2024-11131",
+        "cvss": 9.8,
+        "severity": "CRITICAL",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "synology:* (hardware)",
+        "published": "2025-03-19",
+        "summary": "A vulnerability regarding out-of-bounds read is found in the video interface. This allows remote attackers to execute arbitrary code via unspecified vectors. T…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1048",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Speaker libsmb2 Use-After-Free Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary cod…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1049",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1050",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-04-23",
+        "summary": "Sonos Era 300 Out-of-Bounds Write Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on affect…"
+      },
+      {
+        "device": "192.168.1.111",
+        "mac": "00:0e:58:00:00:11",
+        "id": "CVE-2025-1051",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "sonos:* (hardware)",
+        "published": "2025-06-02",
+        "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+      },
+      {
+        "device": "192.168.1.116",
+        "mac": "f0:18:98:00:00:16",
+        "id": "CVE-2024-11691",
+        "cvss": 8.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "apple:* (hardware)",
+        "published": "2024-11-26",
+        "summary": "Certain WebGL operations on Apple silicon M series devices could have lead to an out-of-bounds write and memory corruption due to a flaw in Apple's GPU driver.…"
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2026-48581",
+        "cvss": 7.8,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2026-07-14",
+        "summary": "Insufficient granularity of access control in Microsoft Surface allows an authorized attacker to elevate privileges locally."
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-21194",
+        "cvss": 7.1,
+        "severity": "HIGH",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-02-11",
+        "summary": "Microsoft Surface Security Feature Bypass Vulnerability"
+      },
+      {
+        "device": "192.168.1.116",
+        "mac": "f0:18:98:00:00:16",
+        "id": "CVE-2019-8900",
+        "cvss": 6.8,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "apple:* (hardware)",
+        "published": "2025-02-21",
+        "summary": "A vulnerability in the SecureROM of some Apple devices can be exploited by an unauthenticated local attacker to execute arbitrary code upon booting those devic…"
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-53781",
+        "cvss": 6.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-08-12",
+        "summary": "Exposure of sensitive information to an unauthorized actor in Azure Virtual Machines allows an authorized attacker to disclose information over a network."
+      },
+      {
+        "device": "192.168.1.117",
+        "mac": "00:15:5d:00:00:17",
+        "id": "CVE-2025-49707",
+        "cvss": 5.5,
+        "severity": "MEDIUM",
+        "kev": false,
+        "certainty": "fabricante",
+        "product": "microsoft:* (hardware)",
+        "published": "2025-08-12",
+        "summary": "Improper access control in Azure Virtual Machines allows an authorized attacker to perform spoofing locally."
       }
     ]
   },
   "devices": [
+    {
+      "ip": "192.168.1.1",
+      "mac": "50:c7:bf:00:00:19",
+      "vendor": "Tp-Link Technologies Co.,Ltd.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "SSDP",
+        "UDP"
+      ],
+      "ports_dst": [
+        1900
+      ],
+      "ports_src": [
+        1900
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [
+        "SSDP:Linux/3.10 UPnP/1.0 miniupnpd/2.1"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [
+        "InternetGatewayDevice",
+        "WANIPConnection"
+      ],
+      "software": [
+        "miniupnpd/2.1"
+      ],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Router / gateway",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 1900 (+1)",
+            "UPnP InternetGatewayDevice, WANIPConnection (+3)",
+            "fabricante 'Tp-Link' (+1)"
+          ]
+        },
+        {
+          "label": "Dispositivo UPnP / multimedia",
+          "score": 3,
+          "confidence": "media",
+          "evidence": [
+            "sirve puerto 1900 (+1)",
+            "texto 'UPnP' (+2)"
+          ]
+        },
+        {
+          "label": "Enchufe / bombilla inteligente",
+          "score": 1,
+          "confidence": "baja",
+          "evidence": [
+            "fabricante 'Tp-Link' (+1)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2019-12108",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "miniupnp_project:miniupnpd 2.1",
+          "published": "2019-05-15",
+          "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in GetOutboundPinholeTimeout in upnpsoap.c for int…"
+        },
+        {
+          "id": "CVE-2019-12109",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "miniupnp_project:miniupnpd 2.1",
+          "published": "2019-05-15",
+          "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in GetOutboundPinholeTimeout in upnpsoap.c for rem…"
+        },
+        {
+          "id": "CVE-2019-12111",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "miniupnp_project:miniupnpd 2.1",
+          "published": "2019-05-15",
+          "summary": "A Denial Of Service vulnerability in MiniUPnP MiniUPnPd through 2.1 exists due to a NULL pointer dereference in copyIPv6IfDifferent in pcpserver.c."
+        },
+        {
+          "id": "CVE-2026-5720",
+          "cvss": 7.1,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "miniupnp_project:miniupnpd 2.1",
+          "published": "2026-04-17",
+          "summary": "miniupnpd contains an integer underflow vulnerability in SOAPAction header parsing that allows remote attackers to cause a denial of service or information dis…"
+        }
+      ]
+    },
     {
       "ip": "192.168.1.10",
       "mac": "a4:14:37:00:00:01",
       "vendor": "Hangzhou Hikvision Digital Technology Co.,Ltd.",
       "hostname": null,
       "source": "pasivo",
-      "packet_count": 6,
+      "packet_count": 7,
       "protocols": [
         "ARP",
         "DNS",
         "NTP",
         "TCP",
         "TLS",
-        "UDP"
+        "UDP",
+        "WS-Discovery"
       ],
       "ports_dst": [
         53,
         123,
-        443
+        443,
+        3702
       ],
       "ports_src": [
         23,
-        554
+        554,
+        3702
       ],
       "dns_queries": [
         "dev.hik-connect.com"
       ],
       "mdns_services": [],
-      "banners": [],
+      "banners": [
+        "ONVIF:hardware=DS-2CD2043G2-I",
+        "ONVIF:name=HIKVISION Entrada"
+      ],
       "ipv6": [],
       "tls_sni": [
         "api.hik-connect.com"
@@ -141,18 +923,31 @@
       "ntp_servers": [
         "203.0.113.123"
       ],
+      "wsd_types": [
+        "Device",
+        "NetworkVideoTransmitter"
+      ],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Cámara IP / NVR",
-          "score": 6,
+          "score": 10,
           "confidence": "alta",
           "evidence": [
             "sirve puerto 554 (+2)",
-            "fabricante 'Hikvision' (+1)",
+            "WS-Discovery NetworkVideoTransmitter (+3)",
+            "texto 'HIKVISION' (+2)",
             "consulta dev.hik-connect.com (+3)"
           ]
         }
-      ]
+      ],
+      "cves": []
     },
     {
       "ip": "192.168.1.20",
@@ -180,6 +975,23 @@
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [
+        "ca=201221",
+        "fn=Saln de Oscar",
+        "id=8f3a1c2b9d4e5f60",
+        "md=Chromecast",
+        "st=0",
+        "ve=05"
+      ],
+      "models": [
+        "Chromecast"
+      ],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Chromecast / Smart TV",
@@ -190,6 +1002,68 @@
             "anuncia _googlecast._tcp (+3)",
             "texto 'Chromecast' (+2)"
           ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2023-48426",
+          "cvss": 10.0,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2024-04-05",
+          "summary": "u-boot bug that allows for u-boot shell and interrupt over UART"
+        },
+        {
+          "id": "CVE-2023-48417",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "Missing Permission checks resulting in unauthorized access and Manipulation in KeyChainActivity Application"
+        },
+        {
+          "id": "CVE-2023-48424",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "U-Boot shell vulnerability resulting in Privilege escalation in a production device"
+        },
+        {
+          "id": "CVE-2023-48425",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "U-Boot vulnerability resulting in persistent Code Execution"
+        },
+        {
+          "id": "CVE-2023-6181",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2023-12-11",
+          "summary": "An oversight in BCB handling of reboot reason that allows for persistent code execution"
+        },
+        {
+          "id": "CVE-2018-12716",
+          "cvss": 4.3,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "google:chromecast",
+          "published": "2018-06-25",
+          "summary": "The API service on Google Home and Chromecast devices before mid-July 2018 does not prevent DNS rebinding attacks from reading the scan_results JSON data, whic…"
         }
       ]
     },
@@ -221,6 +1095,14 @@
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Enchufe / bombilla inteligente",
@@ -232,7 +1114,8 @@
             "consulta a3.tuyaeu.com (+3)"
           ]
         }
-      ]
+      ],
+      "cves": []
     },
     {
       "ip": "192.168.1.40",
@@ -240,20 +1123,41 @@
       "vendor": "Espressif Inc.",
       "hostname": null,
       "source": "pasivo",
-      "packet_count": 1,
+      "packet_count": 2,
       "protocols": [
-        "TCP"
+        "TCP",
+        "UDP",
+        "mDNS"
       ],
       "ports_dst": [
-        1883
+        1883,
+        5353
       ],
       "ports_src": [],
       "dns_queries": [],
-      "mdns_services": [],
+      "mdns_services": [
+        "_esphomelib._tcp"
+      ],
       "banners": [],
       "ipv6": [],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [
+        "board=esp32dev",
+        "friendly_name=Sensor Terraza",
+        "mac=240ac4000004",
+        "platform=ESP32",
+        "version=2024.6.1"
+      ],
+      "models": [],
+      "firmware": [
+        "2024.6.1"
+      ],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo MQTT (sensor/actuador IoT)",
@@ -264,7 +1168,8 @@
             "fabricante 'Esp' (+1)"
           ]
         }
-      ]
+      ],
+      "cves": []
     },
     {
       "ip": "192.168.1.66",
@@ -298,6 +1203,14 @@
         "evilscript.example31mrm"
       ],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo UPnP / multimedia",
@@ -316,7 +1229,744 @@
             "sirve puerto 1900 (+1)"
           ]
         }
+      ],
+      "cves": []
+    },
+    {
+      "ip": "192.168.1.111",
+      "mac": "00:0e:58:00:00:11",
+      "vendor": "Sonos, Inc.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "TCP",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        5353
+      ],
+      "ports_src": [
+        1400
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_sonos._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Altavoz / asistente inteligente",
+          "score": 7,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 1400 (+3)",
+            "anuncia _sonos._tcp (+3)",
+            "fabricante 'Sonos' (+1)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2026-4149",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2026-04-11",
+          "summary": "Sonos Era 300 SMB Response Out-Of-Bounds Access Remote Code Execution Vulnerability. This vulnerability allows remote attackers to execute arbitrary code on af…"
+        },
+        {
+          "id": "CVE-2025-1048",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Speaker libsmb2 Use-After-Free Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary cod…"
+        },
+        {
+          "id": "CVE-2025-1049",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+        },
+        {
+          "id": "CVE-2025-1050",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-04-23",
+          "summary": "Sonos Era 300 Out-of-Bounds Write Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on affect…"
+        },
+        {
+          "id": "CVE-2025-1051",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "sonos:* (hardware)",
+          "published": "2025-06-02",
+          "summary": "Sonos Era 300 Heap-based Buffer Overflow Remote Code Execution Vulnerability. This vulnerability allows network-adjacent attackers to execute arbitrary code on…"
+        }
       ]
+    },
+    {
+      "ip": "192.168.1.112",
+      "mac": "dc:a6:32:00:00:12",
+      "vendor": "Raspberry Pi Trading Ltd",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DHCP",
+        "UDP"
+      ],
+      "ports_dst": [
+        67,
+        5683
+      ],
+      "ports_src": [
+        5683
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [
+        "DHCP:udhcp 1.24.1"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [
+        "udhcp/1.24.1"
+      ],
+      "dhcp_fingerprint": [
+        "1,3,6,12,15,28,42"
+      ],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Dispositivo CoAP (IoT restringido)",
+          "score": 2,
+          "confidence": "baja",
+          "evidence": [
+            "sirve puerto 5683 (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2016-2148",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2017-02-09",
+          "summary": "Heap-based buffer overflow in the DHCP client (udhcpc) in BusyBox before 1.25.0 allows remote attackers to have unspecified impact via vectors involving OPTION…"
+        },
+        {
+          "id": "CVE-2018-1000517",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2018-06-26",
+          "summary": "BusyBox project BusyBox wget version prior to commit 8e2174e9bd836e53c8b9c6e00d1bc6e2a718686e contains a Buffer Overflow vulnerability in Busybox wget that can…"
+        },
+        {
+          "id": "CVE-2022-48174",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2023-08-22",
+          "summary": "There is a stack overflow vulnerability in ash.c:6030 in busybox before 1.35. In the environment of Internet of Vehicles, this vulnerability can be executed fr…"
+        },
+        {
+          "id": "CVE-2017-16544",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2017-11-20",
+          "summary": "In the add_match function in libbb/lineedit.c in BusyBox through 1.27.2, the tab autocomplete feature of the shell, used to get a list of filenames in a direct…"
+        },
+        {
+          "id": "CVE-2022-28391",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2022-04-03",
+          "summary": "BusyBox through 1.35.0 allows remote attackers to execute arbitrary code if netstat is used to print a DNS PTR record's value to a VT compatible terminal. Alte…"
+        },
+        {
+          "id": "CVE-2018-1000500",
+          "cvss": 8.1,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2018-06-26",
+          "summary": "Busybox contains a Missing SSL certificate validation vulnerability in The \"busybox wget\" applet that can result in arbitrary code execution. This attack appea…"
+        },
+        {
+          "id": "CVE-2016-2147",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2017-02-09",
+          "summary": "Integer overflow in the DHCP client (udhcpc) in BusyBox before 1.25.0 allows remote attackers to cause a denial of service (crash) via a malformed RFC1035-enco…"
+        },
+        {
+          "id": "CVE-2016-6301",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2016-12-09",
+          "summary": "The recv_and_process_client_pkt function in networking/ntpd.c in busybox allows remote attackers to cause a denial of service (CPU and bandwidth consumption) v…"
+        },
+        {
+          "id": "CVE-2018-20679",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2019-01-09",
+          "summary": "An issue was discovered in BusyBox before 1.30.0. An out of bounds read in udhcp components (consumed by the DHCP server, client, and relay) allows a remote at…"
+        },
+        {
+          "id": "CVE-2019-5747",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2019-01-09",
+          "summary": "An issue was discovered in BusyBox through 1.30.0. An out of bounds read in udhcp components (consumed by the DHCP client, server, and/or relay) might allow a …"
+        },
+        {
+          "id": "CVE-2021-42378",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the getvar_i function"
+        },
+        {
+          "id": "CVE-2021-42379",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the next_input_file fu…"
+        },
+        {
+          "id": "CVE-2021-42381",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the hash_init function"
+        },
+        {
+          "id": "CVE-2021-42384",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the handle_special fun…"
+        },
+        {
+          "id": "CVE-2021-42385",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the evaluate function"
+        },
+        {
+          "id": "CVE-2021-42386",
+          "cvss": 7.2,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A use-after-free in Busybox's awk applet leads to denial of service and possibly code execution when processing a crafted awk pattern in the nvalloc function"
+        },
+        {
+          "id": "CVE-2025-60876",
+          "cvss": 6.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2025-11-10",
+          "summary": "BusyBox wget thru 1.3.7 accepted raw CR (0x0D)/LF (0x0A) and other C0 control bytes in the HTTP request-target (path/query), allowing the request line to be sp…"
+        },
+        {
+          "id": "CVE-2015-9261",
+          "cvss": 5.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2018-07-26",
+          "summary": "huft_build in archival/libarchive/decompress_gunzip.c in BusyBox before 1.27.2 misuses a pointer, causing segfaults and an application crash during an unzip op…"
+        },
+        {
+          "id": "CVE-2021-42376",
+          "cvss": 5.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2021-11-15",
+          "summary": "A NULL pointer dereference in Busybox's hush applet leads to denial of service when processing a crafted shell command, due to missing validation after a \\x03 …"
+        },
+        {
+          "id": "CVE-2025-46394",
+          "cvss": 3.3,
+          "severity": "LOW",
+          "kev": false,
+          "certainty": "modelo+firmware",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2025-04-23",
+          "summary": "In tar in BusyBox through 1.37.0, a TAR archive can have filenames hidden from a listing through the use of terminal escape sequences."
+        },
+        {
+          "id": "CVE-2017-3209",
+          "cvss": 8.1,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "busybox:busybox 1.24.1",
+          "published": "2018-07-24",
+          "summary": "The DBPOWER U818A WIFI quadcopter drone provides FTP access over its own local access point, and allows full file permissions to the anonymous user. The DBPowe…"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.114",
+      "mac": "00:80:77:00:00:14",
+      "vendor": "Brother industries, LTD.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "UDP",
+        "WS-Discovery",
+        "mDNS"
+      ],
+      "ports_dst": [
+        3702,
+        5353
+      ],
+      "ports_src": [
+        3702
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_ipp._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [
+        "PrintDeviceType"
+      ],
+      "mdns_txt": [
+        "note=Despacho",
+        "pdl=application/pdf",
+        "product=(Brother HL-L2350DW series)",
+        "txtvers=1",
+        "ty=Brother HL-L2350DW series"
+      ],
+      "models": [
+        "Brother HL-L2350DW series"
+      ],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Impresora",
+          "score": 8,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _ipp._tcp (+3)",
+            "WS-Discovery PrintDeviceType (+3)",
+            "texto 'Brother' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2019-13192",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a heap buffer overflow vulnerability as the IPP service did not parse attribute names pr…"
+        },
+        {
+          "id": "CVE-2019-13193",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by a stack buffer overflow vulnerability as the web server did not parse the cookie value p…"
+        },
+        {
+          "id": "CVE-2019-13194",
+          "cvss": 7.5,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "modelo",
+          "product": "brother:hl-l2350dw",
+          "published": "2020-03-13",
+          "summary": "Some Brother printers (such as the HL-L8360CDW v1.20) were affected by different information disclosure vulnerabilities that provided sensitive information to …"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.115",
+      "mac": "00:11:32:00:00:15",
+      "vendor": "Synology Incorporated",
+      "hostname": "DiskStation",
+      "source": "pasivo",
+      "packet_count": 4,
+      "protocols": [
+        "DHCP",
+        "IPv6",
+        "TCP",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        67,
+        443,
+        5353
+      ],
+      "ports_src": [
+        5000
+      ],
+      "dns_queries": [],
+      "mdns_services": [
+        "_smb._tcp"
+      ],
+      "banners": [],
+      "ipv6": [
+        "2001:db8:1:0:5c1d:9a3e:71b2:4f08"
+      ],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "NAS / servidor de ficheros",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "sirve puerto 5000 (+1)",
+            "anuncia _smb._tcp (+2)",
+            "texto 'DiskStation' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2024-11131",
+          "cvss": 9.8,
+          "severity": "CRITICAL",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "synology:* (hardware)",
+          "published": "2025-03-19",
+          "summary": "A vulnerability regarding out-of-bounds read is found in the video interface. This allows remote attackers to execute arbitrary code via unspecified vectors. T…"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.116",
+      "mac": "f0:18:98:00:00:16",
+      "vendor": "Apple, Inc.",
+      "hostname": null,
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DNS",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        53,
+        5353
+      ],
+      "ports_src": [],
+      "dns_queries": [
+        "gateway.icloud.com"
+      ],
+      "mdns_services": [
+        "_companion-link._tcp"
+      ],
+      "banners": [],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Dispositivo Apple",
+          "score": 7,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _companion-link._tcp (+3)",
+            "fabricante 'Apple' (+1)",
+            "consulta gateway.icloud.com (+3)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2024-11691",
+          "cvss": 8.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "apple:* (hardware)",
+          "published": "2024-11-26",
+          "summary": "Certain WebGL operations on Apple silicon M series devices could have lead to an out-of-bounds write and memory corruption due to a flaw in Apple's GPU driver.…"
+        },
+        {
+          "id": "CVE-2019-8900",
+          "cvss": 6.8,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "apple:* (hardware)",
+          "published": "2025-02-21",
+          "summary": "A vulnerability in the SecureROM of some Apple devices can be exploited by an unauthenticated local attacker to execute arbitrary code upon booting those devic…"
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.117",
+      "mac": "00:15:5d:00:00:17",
+      "vendor": "Microsoft Corporation",
+      "hostname": "DESKTOP-4F2K9QX",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "DHCP",
+        "UDP",
+        "WS-Discovery"
+      ],
+      "ports_dst": [
+        67,
+        3702
+      ],
+      "ports_src": [
+        3702
+      ],
+      "dns_queries": [],
+      "mdns_services": [],
+      "banners": [
+        "DHCP:MSFT 5.0"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [
+        "Computer"
+      ],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Equipo Windows",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "WS-Discovery Computer (+3)",
+            "texto 'DESKTOP-' (+2)"
+          ]
+        }
+      ],
+      "cves": [
+        {
+          "id": "CVE-2026-48581",
+          "cvss": 7.8,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2026-07-14",
+          "summary": "Insufficient granularity of access control in Microsoft Surface allows an authorized attacker to elevate privileges locally."
+        },
+        {
+          "id": "CVE-2025-21194",
+          "cvss": 7.1,
+          "severity": "HIGH",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-02-11",
+          "summary": "Microsoft Surface Security Feature Bypass Vulnerability"
+        },
+        {
+          "id": "CVE-2025-53781",
+          "cvss": 6.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-08-12",
+          "summary": "Exposure of sensitive information to an unauthorized actor in Azure Virtual Machines allows an authorized attacker to disclose information over a network."
+        },
+        {
+          "id": "CVE-2025-49707",
+          "cvss": 5.5,
+          "severity": "MEDIUM",
+          "kev": false,
+          "certainty": "fabricante",
+          "product": "microsoft:* (hardware)",
+          "published": "2025-08-12",
+          "summary": "Improper access control in Azure Virtual Machines allows an authorized attacker to perform spoofing locally."
+        }
+      ]
+    },
+    {
+      "ip": "192.168.1.118",
+      "mac": "2c:d0:66:00:00:18",
+      "vendor": "Xiaomi Communications Co Ltd",
+      "hostname": "Redmi-Note-12",
+      "source": "pasivo",
+      "packet_count": 3,
+      "protocols": [
+        "DHCP",
+        "DNS",
+        "SSDP",
+        "UDP"
+      ],
+      "ports_dst": [
+        53,
+        67,
+        1900
+      ],
+      "ports_src": [],
+      "dns_queries": [
+        "connectivitycheck.gstatic.com"
+      ],
+      "mdns_services": [],
+      "banners": [
+        "DHCP:android-dhcp-14",
+        "SSDP:Android/14 UPnP/1.0 Cling/2.0"
+      ],
+      "ipv6": [],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
+      "labels": [
+        {
+          "label": "Móvil Android",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "texto 'Redmi' (+2)",
+            "consulta connectivitycheck.gstatic.com (+3)"
+          ]
+        },
+        {
+          "label": "Dispositivo UPnP / multimedia",
+          "score": 3,
+          "confidence": "media",
+          "evidence": [
+            "conecta a puerto 1900 (+1)",
+            "texto 'UPnP' (+2)"
+          ]
+        }
+      ],
+      "cves": []
     },
     {
       "ip": null,
@@ -347,6 +1997,14 @@
       ],
       "tls_sni": [],
       "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo Matter",
@@ -357,7 +2015,57 @@
             "anuncia _matter._tcp (+3)"
           ]
         }
-      ]
+      ],
+      "cves": []
+    },
+    {
+      "ip": null,
+      "mac": "b8:27:eb:00:00:13",
+      "vendor": "Raspberry Pi Foundation",
+      "hostname": "openthread-br",
+      "source": "pasivo",
+      "packet_count": 2,
+      "protocols": [
+        "IPv6",
+        "UDP",
+        "mDNS"
+      ],
+      "ports_dst": [
+        443,
+        5353
+      ],
+      "ports_src": [],
+      "dns_queries": [],
+      "mdns_services": [
+        "_meshcop._udp"
+      ],
+      "banners": [],
+      "ipv6": [
+        "2001:db8:1:0:ba27:ebff:fe00:13",
+        "fe80::ba27:ebff:fe00:13"
+      ],
+      "tls_sni": [],
+      "ntp_servers": [],
+      "wsd_types": [],
+      "mdns_txt": [],
+      "models": [],
+      "firmware": [],
+      "upnp_types": [],
+      "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": true,
+      "labels": [
+        {
+          "label": "Border router Thread / controlador Matter",
+          "score": 5,
+          "confidence": "alta",
+          "evidence": [
+            "anuncia _meshcop._udp (+3)",
+            "texto 'openthread' (+2)"
+          ]
+        }
+      ],
+      "cves": []
     }
   ]
 }
