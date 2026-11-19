@@ -15,6 +15,7 @@ Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
+import hashlib
 import ipaddress
 import logging
 import re
@@ -22,6 +23,7 @@ import time
 from urllib.parse import unquote
 
 from scapy.all import ARP, DHCP, DNS, IP, NTP, TCP, UDP, AsyncSniffer, Ether, IPv6, Raw, rdpcap
+from scapy.layers.dhcp6 import DHCP6, DHCP6OptClientFQDN, DHCP6OptVendorClass
 
 from .device import Device
 from .discovery import is_unspecified, vendor_from_mac
@@ -126,6 +128,30 @@ def _parse_dhcp(pkt, dev):
             m = _DHCP_CLIENT.match(vendor_class)
             if m:   # versión del cliente DHCP (librería), no del firmware
                 dev.add("software", f"{m.group(1).lower()}/{m.group(2)}")
+
+
+# DHCPv6 (RFC 8415): el cliente habla desde el puerto 546. Como en DHCPv4, puede decir su
+# nombre (opción 39, Client FQDN, RFC 4704) y su "vendor class" (opción 16, con el número
+# de empresa de IANA delante). Los dispositivos solo IPv6 (Matter/Thread) no usan DHCPv4.
+PORT_DHCP6_CLIENT = 546
+
+
+def _parse_dhcp6(pkt, dev):
+    # haslayer() no reconoce subclases: los mensajes (Solicit, Request...) heredan de DHCP6
+    if not any(issubclass(layer, DHCP6) for layer in pkt.layers()):
+        return
+    dev.protocols.add("DHCPv6")
+    if pkt.haslayer(DHCP6OptClientFQDN):
+        fqdn = sanitize_text(getattr(pkt[DHCP6OptClientFQDN], "fqdn", None), 128)
+        host = (fqdn or "").rstrip(".").split(".")[0]
+        if host and not dev.hostname:          # el de DHCPv4 o mDNS, si ya hay, se queda
+            dev.hostname = host
+    if pkt.haslayer(DHCP6OptVendorClass):
+        opt = pkt[DHCP6OptVendorClass]
+        for item in (getattr(opt, "vcdata", None) or [])[:8]:
+            text = sanitize_text(getattr(item, "data", None))
+            if text:
+                dev.add("banners", f"DHCPv6:{text}")
 
 
 # EUI-64 (RFC 4291, apéndice A): el identificador de interfaz (últimos 64 bits) se forma con
@@ -322,37 +348,76 @@ def _u16(data, pos):
     return int.from_bytes(data[pos:pos + 2], "big")
 
 
-def tls_sni(data):
+# GREASE (RFC 8701): valores 0x?a?a que los clientes meten al azar para que los servidores
+# no se atasquen con valores desconocidos. JA3 los quita porque cambian en cada conexión
+TLS_GREASE = {0x0A0A + 0x1010 * i for i in range(16)}
+
+
+def _u16_list(data, start, length):
+    return [_u16(data, start + i) for i in range(0, length - length % 2, 2)]
+
+
+def parse_client_hello(data):
     """
-    Devuelve el SNI (nombre del servidor) de un TLS ClientHello, o None.
+    Lee un TLS ClientHello: {"sni": nombre o None, "ja3": huella o None}, o None.
 
     El ClientHello viaja en claro aunque la conexión vaya cifrada. Solo se mira el
-    primer segmento TCP: si el ClientHello es más largo y el SNI cae en otro
-    segmento, no se encuentra.
+    primer segmento TCP: si el ClientHello es más largo, el SNI puede no encontrarse y la
+    huella JA3 no se calcula (saldría de una lista de extensiones incompleta).
+
+    JA3 (Salesforce, 2017): "versión,cifrados,extensiones,curvas,formatos de punto" con los
+    números en orden de aparición, separados por "-", y su MD5. Depende de la librería TLS
+    del cliente (mbedTLS de un ESP32, OpenSSL de un Linux...), no del servidor.
     """
     try:
         # Registro TLS: tipo 0x16 (handshake), versión 0x03xx; mensaje 0x01 (ClientHello)
         if len(data) < 6 or data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01:
             return None
-        pos = 5 + 4 + 2 + 32                 # cabecera registro + handshake, versión, random
-        pos += 1 + data[pos]                 # session id
-        pos += 2 + _u16(data, pos)           # cipher suites
-        pos += 1 + data[pos]                 # métodos de compresión
-        end = min(pos + 2 + _u16(data, pos), len(data))
+        version = _u16(data, 9)                     # versión del ClientHello
+        pos = 5 + 4 + 2 + 32                        # cabecera registro + handshake, versión, random
+        pos += 1 + data[pos]                        # session id
+        n = _u16(data, pos)
+        ciphers = _u16_list(data, pos + 2, n)       # cipher suites
+        pos += 2 + n
+        pos += 1 + data[pos]                        # métodos de compresión
+        ext_total = _u16(data, pos)
+        complete = pos + 2 + ext_total <= len(data)
+        end = min(pos + 2 + ext_total, len(data))
         pos += 2
+        sni, exts, curves, points = None, [], [], []
         while pos + 4 <= end:
             ext_type, ext_len = _u16(data, pos), _u16(data, pos + 2)
-            pos += 4
-            if ext_type == 0x0000:           # server_name: lista(2) tipo(1) longitud(2) nombre
-                if data[pos + 2] != 0:       # 0 = host_name
-                    return None
-                n = _u16(data, pos + 3)
-                name = data[pos + 5:pos + 5 + n]
-                return name.decode("ascii", errors="ignore") if len(name) == n else None
-            pos += ext_len
+            body = data[pos + 4:pos + 4 + ext_len]
+            pos += 4 + ext_len
+            exts.append(ext_type)
+            if ext_type == 0x0000 and len(body) >= 5 and body[2] == 0:   # server_name, host_name
+                k = _u16(body, 3)
+                name = body[5:5 + k]
+                if len(name) == k:
+                    sni = name.decode("ascii", errors="ignore")
+            elif ext_type == 0x000A and len(body) >= 2:                   # supported_groups (curvas)
+                curves = _u16_list(body, 2, min(_u16(body, 0), len(body) - 2))
+            elif ext_type == 0x000B and body:                             # ec_point_formats
+                points = list(body[1:1 + body[0]])
     except IndexError:
-        pass
-    return None
+        return None
+    ja3 = None
+    if complete and pos == end:
+        def clean(values):
+            return "-".join(str(v) for v in values if v not in TLS_GREASE)
+        ja3 = ",".join([str(version), clean(ciphers), clean(exts), clean(curves), clean(points)])
+    return {"sni": sni, "ja3": ja3}
+
+
+def ja3_hash(ja3):
+    # MD5 porque así se define JA3 (es un identificador, no una protección)
+    return hashlib.md5(ja3.encode(), usedforsecurity=False).hexdigest()
+
+
+def tls_sni(data):
+    """Devuelve el SNI (nombre del servidor) de un TLS ClientHello, o None."""
+    hello = parse_client_hello(data)
+    return hello["sni"] if hello else None
 
 
 # ----------------------------------------------------------------------
@@ -414,10 +479,14 @@ class PassiveSniffer:
             if pkt[TCP].flags & 0x12 == 0x12:
                 dev.add("ports_src", sport)
             if pkt.haslayer(Raw):
-                sni = sanitize_text(tls_sni(bytes(pkt[Raw].load)), 128)
-                if sni:
+                hello = parse_client_hello(bytes(pkt[Raw].load))
+                if hello:
                     dev.protocols.add("TLS")
-                    dev.add("tls_sni", sni.rstrip(".").lower())
+                    sni = sanitize_text(hello["sni"], 128)
+                    if sni:
+                        dev.add("tls_sni", sni.rstrip(".").lower())
+                    if hello["ja3"]:
+                        dev.add("ja3", ja3_hash(hello["ja3"]))
         elif pkt.haslayer(UDP):
             dev.protocols.add("UDP")
             sport, dport = pkt[UDP].sport, pkt[UDP].dport
@@ -434,6 +503,8 @@ class PassiveSniffer:
             _parse_ntp(pkt, dev, ip_dst)
         if pkt.haslayer(DHCP):
             _parse_dhcp(pkt, dev)
+        if sport == PORT_DHCP6_CLIENT and pkt.haslayer(UDP):
+            _parse_dhcp6(pkt, dev)
         if pkt.haslayer(DNS):
             if PORT_MDNS in (sport, dport):
                 _parse_mdns(pkt, dev)

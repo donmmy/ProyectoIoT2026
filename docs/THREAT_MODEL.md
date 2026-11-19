@@ -61,6 +61,7 @@ permisos de administrador para capturar (o sin ellos, si analiza un `.pcap`).
 | **R**epudio | — | No aplica: la herramienta no toma decisiones en nombre de nadie. El `--log` deja registro del análisis | `logsetup.py` |
 | **I**nformation disclosure | El informe revela MAC, IP, hostnames y nombres que puso el usuario | `--anonymize`: seudónimos HMAC-SHA256 con clave aleatoria que no se guarda; de los TXT solo quedan las claves técnicas | `report.anonymize`, `SAFE_TXT_KEYS` |
 | | Informes o capturas reales subidos a GitHub | `.gitignore` excluye `*.pcap`, `informe*`, `*.log` | `.gitignore` |
+| | DNS y SNI completos en el informe (cuentas, IDs o ciudades en el subdominio) | Con `--anonymize` solo queda el dominio registrable (Public Suffix List), también en las evidencias | `psl.registrable_domain`, `report._anonymize_labels` |
 | | `--cve` filtra datos de la red a NVD | Solo salen modelos, fabricantes y nombres CPE; nunca MAC, IP ni hostname; User-Agent genérico. Es opcional | `vulns.lookup_all` (test `test_only_models_leave_the_machine`) |
 | | La clave de NVD acaba en el repositorio o en el registro | Fichero en `.gitignore`; solo se envía a NVD (no a KEV) y no se escribe en el registro | `vulns.read_api_key` (test `test_api_key_file`) |
 | **D**enegación de servicio | Un equipo envía miles de servicios, dominios o TXT | Como mucho 64 elementos por conjunto y dispositivo; 32 pares por TXT | `device.MAX_ITEMS`, `TXT_MAX_PAIRS` |
@@ -106,6 +107,6 @@ Estas limitaciones no son fallos de seguridad, pero condicionan cualquier conclu
 | Captura con permisos de administrador | Scapy necesita sockets raw | Capturar con otra herramienta y usar `--pcap` |
 | La CLI no pide confirmación antes de escanear | Pensada para scripts y pruebas | Mostrar el aviso legal al arrancar una captura en vivo |
 | La pantalla y el `--log` muestran los datos reales aunque se use `--anonymize` | `--anonymize` solo afecta a lo exportado | Tratar el `--log` como dato sensible (está en `.gitignore`) |
-| `--anonymize` no oculta DNS ni SNI | Son la evidencia técnica de la identificación | Valorar caso por caso antes de compartir el informe |
+| `--anonymize` deja el dominio registrable de DNS y SNI (desde 2026-11-19 ya no el nombre completo) | El dominio base es la evidencia de con qué nube habla; en un móvil aún revela qué servicios usa | Valorar caso por caso antes de compartir el informe |
 | Clave de NVD en texto plano en el disco | Es el mecanismo más simple | Usar la variable `NVD_API_KEY` desde un gestor de secretos |
 | Un dispositivo puede anunciar un modelo o una versión falsos | La herramienta es pasiva: no puede comprobarlo | Contrastar con el panel del fabricante o un escaneo activo autorizado |

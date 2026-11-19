@@ -20,6 +20,7 @@ depende de IA en tiempo de ejecución.
 | 2026-11-16 | Claude (Claude Code) | `--cve`: nivel fabricante y ejemplos | Clave de NVD en un fichero ignorado por git; nivel "fabricante (suposición)" con CVE recientes de hardware de la marca; `ejemplos/` regenerado; 10 tests nuevos. Pedido por el autor ("añade también los del nivel 2, con suposiciones que sean vulnerabilidades recientes"); Claude lo limitó a hardware (`h:`) y 2 años tras comprobar que `o:` daba cientos de CVE de Android. |
 | 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | SSDP y modelo de amenazas | Segunda lista de Qwen; el autor eligió 3: tipos UPnP (NT/ST) con regla y alerta IGD, versiones del banner SSDP y de DHCP (firmware frente a librería, con CVE de miniupnpd/libupnp/BusyBox) y `docs/THREAT_MODEL.md`; 18 tests nuevos. Descartadas: sal persistente para `--anonymize`, Aho-Corasick, `mypy`; hilo de la GUI y bridges Hue/HomeKit ya estaban. |
 | 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Huella DHCP y EUI-64 | Tercera lista de Qwen; el autor eligió 2: huella DHCP (opción 55, campo `dhcp_fp` en las reglas) y alerta por IPv6 global con la MAC dentro (EUI-64); 20 tests nuevos. La tercera propuesta (TXT de mDNS) ya estaba hecha desde el 2026-11-16. |
+| 2026-11-19 | **Kiro** (propuestas) + Claude (Claude Code, revisión e implementación) | JA3, DHCPv6, riesgo y eTLD+1 | Lista de Kiro; el autor eligió 4: huella JA3 del ClientHello (campo `ja3` en las reglas), hostname y vendor class de DHCPv6, nivel de riesgo combinado por dispositivo y DNS/SNI al dominio registrable al anonimizar (con la Public Suffix List copiada en el repo); 32 tests nuevos. TXT de mDNS y opción 55 ya estaban; SNI de QUIC descartado. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -87,13 +88,30 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 | Marcar EUI-64 en direcciones link-local o globales | Hecho **solo para globales** (`2000::/3`) y con la MAC del propio equipo: en link-local EUI-64 es lo normal y no filtra nada fuera de la red local. Alerta BAJA |
 | Leer los TXT de mDNS | **Ya estaba** desde el 2026-11-16 (`_parse_txt`, `models`, `firmware`, lista blanca al anonimizar) |
 
+### Lista de Kiro (2026-11-19)
+
+> El autor pegó una lista de **Kiro** ("lo que sobra es profundidad de huella, no base"). Claude
+> la comparó con el código y el autor eligió 4.
+
+| Propuesta de Kiro | Qué se hizo y por qué |
+|---|---|
+| JA3 del ClientHello | Hecho, en el mismo parser que el SNI; sin JA3 si el ClientHello llega partido (la huella sería falsa). Campo `ja3` en las reglas, sin huellas hasta el Hito 6. JA4 no: en IoT JA3 basta (pilas TLS fijas) |
+| TXT de mDNS | **Ya estaba** (2026-11-16) |
+| SNI de QUIC (HTTP/3) | **Descartado**: el esfuerzo no es "medio" sino alto (descifrar el paquete Initial con HKDF y AES-GCM, dependencia `cryptography`) y los IoT casi no usan QUIC |
+| DNS/SNI a eTLD+1 | Hecho **solo al anonimizar** (la identificación usa los dominios completos) y con la Public Suffix List, no con "las dos últimas etiquetas" (fallaría con `co.uk`). También en las evidencias de las etiquetas |
+| Alertas de riesgo combinadas | Hecho como **nivel de riesgo** por dispositivo (ALTO/MEDIO/BAJO con motivos), sin sustituir a las alertas sueltas. Los CVE por fabricante no cuentan |
+| DHCPv6 + NDP | Hecho DHCPv6 (opciones 39 y 16). NDP no hacía falta: cualquier paquete IPv6 ya crea el dispositivo por su MAC |
+| Huella DHCP opción 55 | **Ya estaba** (commit `35dea87`) |
+
+Kiro decía "92 % de cobertura": era el 95 % antes de estos cambios y sigue siéndolo.
+
 ### Prompt de la interfaz gráfica (2026-10-25)
 
 > "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 127 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 159 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la

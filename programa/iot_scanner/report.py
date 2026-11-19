@@ -19,6 +19,8 @@ import secrets
 from collections import Counter
 from datetime import datetime, timezone
 
+from .psl import registrable_domain
+
 log = logging.getLogger(__name__)
 
 # Puertos servidos por un dispositivo que merecen revisión: puerto -> (severidad, motivo)
@@ -124,10 +126,66 @@ def certainty_label(certainty):
     return "fabricante (suposición)" if certainty == "fabricante" else certainty
 
 
+# ----------------------------------------------------------------------
+# Riesgo combinado por dispositivo (propuesta de Kiro)
+# ----------------------------------------------------------------------
+#
+# Un único nivel que resume sus alertas y sus CVE, para ordenar qué revisar primero:
+#   ALTO  -> alguna alerta ALTA (Telnet abierto, CVE en KEV con la versión vulnerable...)
+#   MEDIO -> alguna alerta MEDIA, un CVE con la versión confirmada y CVSS >= 7, o un CVE
+#            en KEV con certeza de modelo
+#   BAJO  -> cualquier otra alerta o CVE fiable (modelo o modelo+firmware)
+# Los CVE por fabricante no suben el riesgo: son una suposición sobre otros equipos.
+
+RISK_ORDER = {"ALTO": 0, "MEDIO": 1, "BAJO": 2}
+_ALERT_TO_RISK = {"ALTA": "ALTO", "MEDIA": "MEDIO", "BAJA": "BAJO"}
+RISK_CVSS_MEDIUM = 7.0
+
+
+def _cve_risk(c):
+    if c["certainty"] == "fabricante":
+        return None
+    if (c["certainty"] == "modelo+firmware" and (c["cvss"] or 0) >= RISK_CVSS_MEDIUM) or c["kev"]:
+        return "MEDIO"
+    return "BAJO"
+
+
+def device_risk(dev, alerts):
+    """{"level": "ALTO"/"MEDIO"/"BAJO" o None, "reasons": [...]} para un dispositivo."""
+    own = [a for a in alerts if a["mac"] == dev.mac]
+    levels = [_ALERT_TO_RISK[a["severity"]] for a in own]
+    reliable = [c for c in dev.cves if _cve_risk(c)]
+    levels += [_cve_risk(c) for c in reliable]
+    reasons = []
+    if own:
+        worst = min((a["severity"] for a in own), key=SEVERITY_ORDER.get)
+        reasons.append(f"{len(own)} alerta{'s' if len(own) > 1 else ''} (peor: {worst})")
+    if reliable:
+        top = max((c["cvss"] or 0) for c in reliable)
+        kev = sum(1 for c in reliable if c["kev"])
+        reasons.append(f"{len(reliable)} CVE fiable{'s' if len(reliable) > 1 else ''} (CVSS máx. {top:g}"
+                       + (f", {kev} en KEV" if kev else "") + ")")
+    level = min(levels, key=RISK_ORDER.get) if levels else None
+    return {"level": level, "reasons": reasons}
+
+
+def build_risk(devices, alerts=None):
+    """Lista de dispositivos con riesgo, del más alto al más bajo."""
+    alerts = build_alerts(devices) if alerts is None else alerts
+    rows = []
+    for dev in devices.values():
+        r = device_risk(dev, alerts)
+        if r["level"]:
+            rows.append({"device": dev.ip or dev.mac, "mac": dev.mac, **r})
+    rows.sort(key=lambda r: (RISK_ORDER[r["level"]], r["device"]))
+    return rows
+
+
 def build_summary(devices, meta=None):
     protocols = Counter(p for d in devices.values() for p in d.protocols)
     types = Counter(d.labels[0]["label"] if d.labels else "Sin identificar"
                     for d in devices.values())
+    alerts = build_alerts(devices)
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         **(meta or {}),
@@ -135,8 +193,9 @@ def build_summary(devices, meta=None):
         "identified_count": sum(1 for d in devices.values() if d.labels),
         "top_protocols": protocols.most_common(10),
         "device_types": types.most_common(),
-        "alerts": build_alerts(devices),
+        "alerts": alerts,
         "cves": build_cve_list(devices),
+        "risk": build_risk(devices, alerts),
     }
 
 
@@ -183,6 +242,20 @@ def _keep_txt(entry):
     return entry.partition("=")[0] in SAFE_TXT_KEYS
 
 
+# Evidencias de dominio ("consulta dev.hik-connect.com (+3)", "TLS a x.tuya.com (+3)"): si no
+# se recortan, el dominio completo seguiría en las etiquetas del informe anonimizado
+_DOMAIN_EVIDENCE = re.compile(r"^(consulta|TLS a) (\S+)(.*)$")
+
+
+def _anonymize_evidence(evidence):
+    m = _DOMAIN_EVIDENCE.match(evidence)
+    return f"{m.group(1)} {registrable_domain(m.group(2))}{m.group(3)}" if m else evidence
+
+
+def _anonymize_labels(labels):
+    return [{**c, "evidence": [_anonymize_evidence(e) for e in c.get("evidence", [])]} for c in labels]
+
+
 def _anonymize_banner(banner, pseudo):
     # El nombre ONVIF lo pone el usuario ("HIKVISION Entrada") y puede delatar dónde está
     if banner.startswith("ONVIF:name="):
@@ -201,7 +274,11 @@ def anonymize(devices, meta=None, key=None):
             ipv6={pseudo("ip6", a) for a in d.ipv6},
             banners={_anonymize_banner(b, pseudo) for b in d.banners},
             mdns_txt={t for t in d.mdns_txt if _keep_txt(t)},
-            labels=[dict(c) for c in d.labels], cves=[dict(c) for c in d.cves])
+            # DNS y SNI: solo el dominio registrable (eTLD+1). Basta como evidencia de con qué
+            # nube habla, y el resto del nombre puede delatar al usuario (cuentas, IDs, ciudades)
+            dns_queries={registrable_domain(q) for q in d.dns_queries},
+            tls_sni={registrable_domain(s) for s in d.tls_sni},
+            labels=_anonymize_labels(d.labels), cves=[dict(c) for c in d.cves])
         out[new.mac] = new
     meta = dict(meta or {})
     if meta.get("iface"):
@@ -253,6 +330,11 @@ def print_summary(summary):
     for a in alerts:
         port = a["port"] if a["port"] is not None else "-"
         print(f"   [{a['severity']:<5}] {a['device']:<16} puerto {port:<5} {a['message']}")
+    risk = summary.get("risk", [])
+    if risk:
+        print("\nRiesgo por dispositivo (alertas + CVE fiables; los de fabricante no cuentan):")
+        for r in risk:
+            print(f"   [{r['level']:<5}] {r['device']:<16} {'; '.join(r['reasons'])}")
     print_cves(summary)
     print()
 
@@ -295,7 +377,7 @@ def export_json(devices, summary, path):
 
 
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
-              "tipo_probable", "confianza", "evidencias", "protocols",
+              "tipo_probable", "confianza", "riesgo", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
               "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt",
               "upnp_types", "software", "dhcp_fingerprint", "eui64_global", "cves"]
@@ -312,6 +394,7 @@ def _cve_cell(c):
 
 
 def export_csv(devices, path):
+    risk = {r["mac"]: r["level"] for r in build_risk(devices)}
     with open(path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=CSV_FIELDS, delimiter=";")
         w.writeheader()
@@ -323,6 +406,7 @@ def export_csv(devices, path):
                 "packet_count": d.packet_count,
                 "tipo_probable": best.get("label", ""),
                 "confianza": best.get("confidence", ""),
+                "riesgo": risk.get(d.mac, ""),
                 "evidencias": " | ".join(best.get("evidence", [])),
                 "protocols": " ".join(sorted(d.protocols)),
                 "ports_src": " ".join(map(str, sorted(d.ports_src))),

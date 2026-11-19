@@ -35,7 +35,7 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **127 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **159 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -63,6 +63,7 @@ programa/               todo el código (ejecutar desde aquí)
     logsetup.py         logging común CLI/GUI: consola [*]/[!] y --log fichero
     report.py           Hito 4: build_alerts, build_cve_list, build_summary, print_*, export_json,
                         export_csv, anonymize (seudónimos HMAC para --anonymize)
+    psl.py              registrable_domain (eTLD+1) con public_suffix_list.dat (MPL-2.0)
     vulns.py            --cve: Client (caché + ritmo NVD), find_products (modelo -> CPE),
                         product_cves, assess (certeza), version_in_range, load_kev, lookup_all
   tests/
@@ -141,6 +142,12 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   reglas con huellas todavía: se tomarán de los dispositivos reales (Hito 6), no se inventan.
   `eui64_global` marca una IPv6 **global** con la MAC del equipo dentro (alerta BAJA); en
   link-local no cuenta (no sale de la red local).
+- **Propuestas de Kiro** (2026-11-19): `parse_client_hello()` da SNI y **JA3** (sin GREASE; sin
+  huella si el ClientHello llega partido); campo `ja3` en las reglas. **DHCPv6** desde el puerto
+  546: opción 39 (hostname, sin pisar el de DHCPv4/mDNS) y 16 (banner `DHCPv6:`). **Riesgo**
+  ALTO/MEDIO/BAJO por dispositivo (`report.device_risk`); los CVE por fabricante no cuentan.
+  **`--anonymize`** deja DNS y SNI (y sus evidencias) en el dominio registrable con la Public
+  Suffix List copiada en `iot_scanner/public_suffix_list.dat` (`psl.py`; actualizar con curl).
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
   lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
@@ -241,7 +248,8 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [x] TXT de mDNS: modelo y firmware (2026-11-16).
 - [x] Versiones de los banners SSDP `SERVER` y DHCP (`udhcp`), firmware frente a librería (2026-11-19).
 - [ ] Límite de dispositivos (riesgo residual de `THREAT_MODEL.md`: inundación de MAC falsas).
-- [ ] Hito 6: anotar la huella DHCP (opción 55) de cada dispositivo real y crear reglas `dhcp_fp`.
+- [ ] Hito 6: anotar la huella DHCP (opción 55) y la JA3 de cada dispositivo real y crear reglas
+  `dhcp_fp` y `ja3`.
 - [x] Búsqueda de vulnerabilidades `--cve` (2026-11-16): NVD por CPE + KEV, caché, certeza
   modelo / modelo+firmware / fabricante (suposición: CVE recientes de hardware de la marca).
 - [ ] CVE: más software en `SERVICE_PRODUCTS` (Shelly, Tasmota…) y probar con los
@@ -307,3 +315,5 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   persistente, Aho-Corasick, mypy. Tests 89 → 107. Implementado por Claude.
 - **2026-11-19** — Tercera lista de **Qwen**: huella DHCP (opción 55, campo `dhcp_fp`) y alerta
   EUI-64 en IPv6 global. La de TXT de mDNS ya estaba. Tests 107 → 127. Implementado por Claude.
+- **2026-11-19** — Lista de **Kiro**: JA3, DHCPv6 (39 y 16), riesgo combinado por dispositivo y
+  eTLD+1 al anonimizar (Public Suffix List en el repo). Tests 127 → 159. Implementado por Claude.

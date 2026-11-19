@@ -446,7 +446,10 @@ def test_anonymize_hides_identifiers(devices):
         assert real not in dump
     cam = next(d for d in anon.values() if d.labels and d.labels[0]["label"] == "Cámara IP / NVR")
     assert cam.mac.startswith("mac-") and cam.ip.startswith("ip-")
-    assert "dev.hik-connect.com" in cam.dns_queries and 554 in cam.ports_src   # lo técnico se conserva
+    # Lo técnico se conserva; de los dominios, solo el registrable (eTLD+1), también en las evidencias
+    assert cam.dns_queries == {"hik-connect.com"} and 554 in cam.ports_src
+    assert any(e.startswith("consulta hik-connect.com") for e in cam.labels[0]["evidence"])
+    assert "dev.hik-connect.com" not in json.dumps([d.to_dict() for d in anon.values()])
     assert anon_meta["anonymized"] and anon_meta["pcap"] == "lab.pcap"
     for path in ("/home/alguien/lab.pcap", "lab.pcap"):   # rutas de Linux y sin carpeta
         assert report.anonymize({}, {"pcap": path})[1]["pcap"] == "lab.pcap"

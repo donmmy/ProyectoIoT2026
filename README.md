@@ -127,9 +127,9 @@ python -m tests.lab_packets          # la regenera en ../ejemplos/ejemplo_lab.pc
 | Hito | Módulo | Qué hace |
 |---|---|---|
 | 1 | `iot_scanner/discovery.py` | Autodetección de interfaz y CIDR, ARP scan, fabricante por OUI (detecta MAC aleatorias). Si nadie responde al ARP (aislamiento de clientes) se pasa a modo solo-escucha. |
-| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS y sus registros TXT (modelo y firmware), banners SSDP y vendor class DHCP. Huella DHCP (opción 55) y aviso si una IPv6 global lleva la MAC dentro (EUI-64). De SSDP, el tipo UPnP (`NT`/`ST`) y las versiones del `SERVER`, separando firmware del producto y librerías (miniupnpd, BusyBox). Todo texto de red se sanea. |
+| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS y sus registros TXT (modelo y firmware), banners SSDP y vendor class DHCP. Huella DHCP (opción 55), huella TLS JA3, nombre y vendor class de DHCPv6, y aviso si una IPv6 global lleva la MAC dentro (EUI-64). De SSDP, el tipo UPnP (`NT`/`ST`) y las versiones del `SERVER`, separando firmware del producto y librerías (miniupnpd, BusyBox). Todo texto de red se sanea. |
 | 3 | `iot_scanner/heuristics.py` + `rules.json` | Reglas en JSON (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...), validadas al cargar. Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
-| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...) y por UPnP IGD anunciado (el router abre puertos a quien se lo pida) o IPv6 global con la MAC dentro. Anonimización opcional de lo exportado. |
+| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...) y por UPnP IGD anunciado (el router abre puertos a quien se lo pida) o IPv6 global con la MAC dentro. Nivel de riesgo por dispositivo (ALTO/MEDIO/BAJO) que resume alertas y CVE fiables. Anonimización opcional de lo exportado. |
 | + | `iot_scanner/vulns.py` | `--cve`: modelo → CPE (diccionario de NVD), librerías de los banners (miniupnpd, libupnp, BusyBox), CVE de NVD, nivel de certeza por versión, marca de CISA KEV, caché y ritmo de consultas. |
 
 `iot_scanner/device.py` define el modelo de datos común, `iot_scanner/logsetup.py` el registro, `net_device_scanner.py` es la CLI y
@@ -168,8 +168,10 @@ propuestas por **Qwen** e implementadas con Claude; el detalle está en `docs/AI
   la tarjeta. Para verlo hace falta port mirroring, un hub o usar el portátil como punto de acceso.
 - WS-Discovery: en pasivo solo se ve el `Hello` de un dispositivo cuando se conecta a la red
   durante la escucha.
-- `--anonymize` no oculta las consultas DNS ni el SNI (son evidencia técnica, pero en un móvil
-  pueden revelar hábitos de navegación) y no afecta a la pantalla ni al `--log`.
+- `--anonymize` deja las consultas DNS y el SNI en el dominio registrable (`hik-connect.com`,
+  con la [Public Suffix List](https://publicsuffix.org), MPL-2.0, copiada en
+  `iot_scanner/public_suffix_list.dat`): el dominio base aún dice con qué servicios habla un
+  móvil. No afecta a la pantalla ni al `--log`.
 - Los dispositivos con MAC aleatoria no tienen fabricante OUI.
 - `--cve` solo encuentra dispositivos que anuncian un modelo con nombre CPE en NVD; sin
   versión, "certeza modelo" quiere decir que ese modelo ha tenido el fallo, no que este
