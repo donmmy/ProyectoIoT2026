@@ -35,7 +35,7 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **107 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **127 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -136,6 +136,11 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   (`firmware`). Campo `upnp` en las reglas (+3, una vez aunque haya varios tipos). Alerta MEDIA
   por UPnP IGD/WANIPConnection. `--cve` busca también las librerías (`SOFTWARE_CPE`) con su
   versión. Modelo de amenazas en `docs/THREAT_MODEL.md`.
+- **Huella DHCP y EUI-64** (2026-11-19, propuestas de Qwen): la opción 55 se guarda en orden como
+  `dhcp_fingerprint` ("1,3,6,15") y el campo `dhcp_fp` de las reglas la compara exacta (+3). No hay
+  reglas con huellas todavía: se tomarán de los dispositivos reales (Hito 6), no se inventan.
+  `eui64_global` marca una IPv6 **global** con la MAC del equipo dentro (alerta BAJA); en
+  link-local no cuenta (no sale de la red local).
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
   lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
@@ -236,6 +241,7 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [x] TXT de mDNS: modelo y firmware (2026-11-16).
 - [x] Versiones de los banners SSDP `SERVER` y DHCP (`udhcp`), firmware frente a librería (2026-11-19).
 - [ ] Límite de dispositivos (riesgo residual de `THREAT_MODEL.md`: inundación de MAC falsas).
+- [ ] Hito 6: anotar la huella DHCP (opción 55) de cada dispositivo real y crear reglas `dhcp_fp`.
 - [x] Búsqueda de vulnerabilidades `--cve` (2026-11-16): NVD por CPE + KEV, caché, certeza
   modelo / modelo+firmware / fabricante (suposición: CVE recientes de hardware de la marca).
 - [ ] CVE: más software en `SERVICE_PRODUCTS` (Shelly, Tasmota…) y probar con los
@@ -299,3 +305,5 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - **2026-11-19** — Segunda lista de **Qwen**: SSDP (tipos UPnP, regla y alerta IGD, versiones del
   `SERVER` y de `udhcp`, CVE de librerías) y `docs/THREAT_MODEL.md` (STRIDE). Descartadas: sal
   persistente, Aho-Corasick, mypy. Tests 89 → 107. Implementado por Claude.
+- **2026-11-19** — Tercera lista de **Qwen**: huella DHCP (opción 55, campo `dhcp_fp`) y alerta
+  EUI-64 en IPv6 global. La de TXT de mDNS ya estaba. Tests 107 → 127. Implementado por Claude.

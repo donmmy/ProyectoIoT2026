@@ -58,6 +58,7 @@ class Rule:
     domains: str | None = None   # regex sobre consultas DNS y SNI de TLS
     wsd: set = field(default_factory=set)            # tipos WS-Discovery anunciados
     upnp: set = field(default_factory=set)           # tipos UPnP anunciados por SSDP (NT/ST)
+    dhcp_fp: set = field(default_factory=set)        # huellas DHCP opción 55 exactas ("1,3,6,15")
     _text_re: re.Pattern | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
@@ -73,7 +74,7 @@ class Rule:
 # ----------------------------------------------------------------------
 
 _PORT_FIELDS = ("served_ports", "client_ports")
-_NAME_FIELDS = ("mdns", "wsd", "upnp")
+_NAME_FIELDS = ("mdns", "wsd", "upnp", "dhcp_fp")
 _REGEX_FIELDS = ("text", "domains")
 _RULE_FIELDS = {"label", *_PORT_FIELDS, *_NAME_FIELDS, *_REGEX_FIELDS}
 
@@ -185,6 +186,9 @@ def evaluate_rule(rule, dev):
     upnp = sorted(rule.upnp & dev.upnp_types)
     if upnp:
         evidence.append((f"UPnP {', '.join(upnp)}", WEIGHT_STRONG))
+    # Huella DHCP: la lista y el orden de opciones los fija el cliente DHCP del sistema
+    for fp in sorted(rule.dhcp_fp & dev.dhcp_fingerprint):
+        evidence.append((f"huella DHCP {fp}", WEIGHT_STRONG))
 
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el

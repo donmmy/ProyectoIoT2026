@@ -529,6 +529,7 @@ class ScannerApp(ttk.Frame):
                            ("wsd_types", "WS-Discovery"), ("models", "Modelo"),
                            ("firmware", "Firmware"), ("mdns_txt", "TXT de mDNS"),
                            ("upnp_types", "Tipos UPnP (SSDP)"), ("software", "Librerías con versión"),
+                           ("dhcp_fingerprint", "Huella DHCP (opción 55)"),
                            ("banners", "Banners")):
             values = d.get(key)
             if values:

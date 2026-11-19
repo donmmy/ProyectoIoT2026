@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generated_at": "2026-11-19T15:06:04+00:00",
+    "generated_at": "2026-11-19T16:22:50+00:00",
     "mode": "pcap",
     "pcap": "../ejemplos/ejemplo_lab.pcap",
     "cve_search": {
@@ -9,11 +9,11 @@
       "by_vendor": 12,
       "not_searched": 0,
       "no_cpe": 0,
-      "cves": 49,
+      "cves": 46,
       "kev": 0,
       "discarded_by_version": 36,
-      "requests": 21,
-      "errors": 0,
+      "requests": 20,
+      "errors": 1,
       "kev_loaded": true
     },
     "device_count": 15,
@@ -48,15 +48,15 @@
         3
       ],
       [
+        "IPv6",
+        3
+      ],
+      [
         "TLS",
         2
       ],
       [
-        "IPv6",
-        2
-      ],
-      [
-        "ARP",
+        "NTP",
         1
       ]
     ],
@@ -206,6 +206,13 @@
         "mac": "00:11:22:00:00:05",
         "port": 1900,
         "message": "UPnP activo (puede abrir puertos en el router)"
+      },
+      {
+        "severity": "BAJA",
+        "device": "b8:27:eb:00:00:13",
+        "mac": "b8:27:eb:00:00:13",
+        "port": null,
+        "message": "IPv6 global con la MAC dentro (EUI-64): se le puede seguir de una red a otra; usar direcciones temporales (RFC 4941/7217)"
       }
     ],
     "cves": [
@@ -642,18 +649,6 @@
         "summary": "A vulnerability regarding out-of-bounds read is found in the video interface. This allows remote attackers to execute arbitrary code via unspecified vectors. T…"
       },
       {
-        "device": "192.168.1.10",
-        "mac": "a4:14:37:00:00:01",
-        "id": "CVE-2025-66176",
-        "cvss": 8.8,
-        "severity": "HIGH",
-        "kev": false,
-        "certainty": "fabricante",
-        "product": "hikvision:* (hardware)",
-        "published": "2026-01-13",
-        "summary": "There is a Buffer overflow Vulnerability in the device Search and Discovery feature of Hikvision Access Control Products. If exploited, an attacker on the same…"
-      },
-      {
         "device": "192.168.1.111",
         "mac": "00:0e:58:00:00:11",
         "id": "CVE-2025-1048",
@@ -738,18 +733,6 @@
         "summary": "Microsoft Surface Security Feature Bypass Vulnerability"
       },
       {
-        "device": "192.168.1.10",
-        "mac": "a4:14:37:00:00:01",
-        "id": "CVE-2025-66174",
-        "cvss": 6.8,
-        "severity": "MEDIUM",
-        "kev": false,
-        "certainty": "fabricante",
-        "product": "hikvision:* (hardware)",
-        "published": "2025-12-19",
-        "summary": "There is an improper authentication vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an …"
-      },
-      {
         "device": "192.168.1.116",
         "mac": "f0:18:98:00:00:16",
         "id": "CVE-2019-8900",
@@ -772,18 +755,6 @@
         "product": "microsoft:* (hardware)",
         "published": "2025-08-12",
         "summary": "Exposure of sensitive information to an unauthorized actor in Azure Virtual Machines allows an authorized attacker to disclose information over a network."
-      },
-      {
-        "device": "192.168.1.10",
-        "mac": "a4:14:37:00:00:01",
-        "id": "CVE-2025-66173",
-        "cvss": 6.2,
-        "severity": "MEDIUM",
-        "kev": false,
-        "certainty": "fabricante",
-        "product": "hikvision:* (hardware)",
-        "published": "2025-12-19",
-        "summary": "There is a privilege escalation vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an atta…"
       },
       {
         "device": "192.168.1.117",
@@ -836,6 +807,8 @@
       "software": [
         "miniupnpd/2.1"
       ],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Router / gateway",
@@ -959,6 +932,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Cámara IP / NVR",
@@ -972,38 +947,7 @@
           ]
         }
       ],
-      "cves": [
-        {
-          "id": "CVE-2025-66176",
-          "cvss": 8.8,
-          "severity": "HIGH",
-          "kev": false,
-          "certainty": "fabricante",
-          "product": "hikvision:* (hardware)",
-          "published": "2026-01-13",
-          "summary": "There is a Buffer overflow Vulnerability in the device Search and Discovery feature of Hikvision Access Control Products. If exploited, an attacker on the same…"
-        },
-        {
-          "id": "CVE-2025-66174",
-          "cvss": 6.8,
-          "severity": "MEDIUM",
-          "kev": false,
-          "certainty": "fabricante",
-          "product": "hikvision:* (hardware)",
-          "published": "2025-12-19",
-          "summary": "There is an improper authentication vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an …"
-        },
-        {
-          "id": "CVE-2025-66173",
-          "cvss": 6.2,
-          "severity": "MEDIUM",
-          "kev": false,
-          "certainty": "fabricante",
-          "product": "hikvision:* (hardware)",
-          "published": "2025-12-19",
-          "summary": "There is a privilege escalation vulnerability in some Hikvision DVR products. Due to the improper implementation of authentication for the serial port, an atta…"
-        }
-      ]
+      "cves": []
     },
     {
       "ip": "192.168.1.20",
@@ -1046,6 +990,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Chromecast / Smart TV",
@@ -1155,6 +1101,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Enchufe / bombilla inteligente",
@@ -1208,6 +1156,8 @@
       ],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo MQTT (sensor/actuador IoT)",
@@ -1259,6 +1209,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo UPnP / multimedia",
@@ -1312,6 +1264,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Altavoz / asistente inteligente",
@@ -1411,6 +1365,10 @@
       "software": [
         "udhcp/1.24.1"
       ],
+      "dhcp_fingerprint": [
+        "1,3,6,12,15,28,42"
+      ],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo CoAP (IoT restringido)",
@@ -1677,6 +1635,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Impresora",
@@ -1728,15 +1688,17 @@
       "vendor": "Synology Incorporated",
       "hostname": "DiskStation",
       "source": "pasivo",
-      "packet_count": 3,
+      "packet_count": 4,
       "protocols": [
         "DHCP",
+        "IPv6",
         "TCP",
         "UDP",
         "mDNS"
       ],
       "ports_dst": [
         67,
+        443,
         5353
       ],
       "ports_src": [
@@ -1747,7 +1709,9 @@
         "_smb._tcp"
       ],
       "banners": [],
-      "ipv6": [],
+      "ipv6": [
+        "2001:db8:1:0:5c1d:9a3e:71b2:4f08"
+      ],
       "tls_sni": [],
       "ntp_servers": [],
       "wsd_types": [],
@@ -1756,6 +1720,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "NAS / servidor de ficheros",
@@ -1814,6 +1780,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo Apple",
@@ -1884,6 +1852,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Equipo Windows",
@@ -1974,6 +1944,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Móvil Android",
@@ -2031,6 +2003,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": false,
       "labels": [
         {
           "label": "Dispositivo Matter",
@@ -2050,13 +2024,14 @@
       "vendor": "Raspberry Pi Foundation",
       "hostname": "openthread-br",
       "source": "pasivo",
-      "packet_count": 1,
+      "packet_count": 2,
       "protocols": [
         "IPv6",
         "UDP",
         "mDNS"
       ],
       "ports_dst": [
+        443,
         5353
       ],
       "ports_src": [],
@@ -2066,6 +2041,7 @@
       ],
       "banners": [],
       "ipv6": [
+        "2001:db8:1:0:ba27:ebff:fe00:13",
         "fe80::ba27:ebff:fe00:13"
       ],
       "tls_sni": [],
@@ -2076,6 +2052,8 @@
       "firmware": [],
       "upnp_types": [],
       "software": [],
+      "dhcp_fingerprint": [],
+      "eui64_global": true,
       "labels": [
         {
           "label": "Border router Thread / controlador Matter",

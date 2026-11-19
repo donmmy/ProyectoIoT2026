@@ -15,6 +15,7 @@ Todo lo que llega de la red es texto controlado por terceros: se sanea antes de
 guardarlo (ver sanitize_text) para que no rompa la consola ni los exportes.
 """
 
+import ipaddress
 import logging
 import re
 import time
@@ -94,12 +95,30 @@ def _dns_records(section):
     return out
 
 
+# Opción 55 (Parameter Request List, RFC 2132): qué opciones pide el cliente y en qué
+# orden. Depende del cliente DHCP del sistema (Android, Windows, udhcp, lwIP de un ESP32...),
+# así que es una huella pasiva del SO/firmware. Se guarda como "1,3,6,15" (formato habitual
+# de las bases de huellas, p. ej. Fingerbank).
+DHCP_FP_MAX = 64
+
+
+def dhcp_fingerprint(value):
+    if isinstance(value, (bytes, bytearray)):
+        value = list(value)
+    if not isinstance(value, (list, tuple)):
+        value = [value]
+    codes = [v for v in value[:DHCP_FP_MAX] if isinstance(v, int) and 0 <= v <= 255]
+    return ",".join(map(str, codes)) or None
+
+
 def _parse_dhcp(pkt, dev):
     dev.protocols.add("DHCP")
     for opt in pkt[DHCP].options:
         if not isinstance(opt, tuple) or len(opt) < 2:
             continue
-        if opt[0] == "hostname":
+        if opt[0] == "param_req_list":
+            dev.add("dhcp_fingerprint", dhcp_fingerprint(opt[1] if len(opt) == 2 else list(opt[1:])))
+        elif opt[0] == "hostname":
             dev.hostname = sanitize_text(opt[1]) or dev.hostname
         elif opt[0] == "vendor_class_id":
             vendor_class = sanitize_text(opt[1]) or ""
@@ -107,6 +126,35 @@ def _parse_dhcp(pkt, dev):
             m = _DHCP_CLIENT.match(vendor_class)
             if m:   # versión del cliente DHCP (librería), no del firmware
                 dev.add("software", f"{m.group(1).lower()}/{m.group(2)}")
+
+
+# EUI-64 (RFC 4291, apéndice A): el identificador de interfaz (últimos 64 bits) se forma con
+# la MAC partida en dos, ff:fe en medio y el bit U/L invertido. En una dirección link-local
+# (fe80::) es lo normal y no filtra nada: no sale de la red local, donde la MAC ya se ve. En
+# una dirección GLOBAL (2000::/3) sí: viaja a internet y permite seguir al dispositivo de una
+# red a otra. Las direcciones temporales (RFC 4941) y estables opacas (RFC 7217) lo evitan.
+GLOBAL_UNICAST = ipaddress.IPv6Network("2000::/3")
+
+
+def eui64_mac(addr):
+    """MAC incrustada en una IPv6 con EUI-64, o None."""
+    try:
+        iid = ipaddress.IPv6Address(addr).packed[8:]
+    except ValueError:
+        return None
+    if iid[3:5] != b"\xff\xfe":
+        return None
+    mac = bytes([iid[0] ^ 0x02]) + iid[1:3] + iid[5:8]
+    return ":".join(f"{b:02x}" for b in mac)
+
+
+def leaks_mac(addr, mac):
+    """True si es una IPv6 global que lleva dentro la MAC real del dispositivo."""
+    try:
+        is_global = ipaddress.IPv6Address(addr) in GLOBAL_UNICAST
+    except ValueError:
+        return False
+    return is_global and eui64_mac(addr) == (mac or "").lower()
 
 
 def _parse_mdns(pkt, dev):
@@ -355,6 +403,8 @@ class PassiveSniffer:
             ip_dst = pkt[IPv6].dst
             if not is_unspecified(pkt[IPv6].src):
                 dev.add("ipv6", pkt[IPv6].src)
+                if not dev.eui64_global and leaks_mac(pkt[IPv6].src, src_mac):
+                    dev.eui64_global = True
 
         sport = dport = None
         if pkt.haslayer(TCP):

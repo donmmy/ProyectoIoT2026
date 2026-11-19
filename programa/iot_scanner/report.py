@@ -95,6 +95,10 @@ def build_alerts(devices):
         for t in sorted(dev.upnp_types & SENSITIVE_UPNP.keys()):
             sev, msg = SENSITIVE_UPNP[t]
             alerts.append({"severity": sev, "device": who, "mac": dev.mac, "port": 1900, "message": msg})
+        if dev.eui64_global:
+            alerts.append({"severity": "BAJA", "device": who, "mac": dev.mac, "port": None,
+                           "message": "IPv6 global con la MAC dentro (EUI-64): se le puede seguir de una "
+                                      "red a otra; usar direcciones temporales (RFC 4941/7217)"})
         # Un CVE solo pasa a alerta si es tan seguro y urgente como un Telnet abierto:
         # explotado activamente (KEV) y con la versión anunciada dentro del rango vulnerable
         for c in dev.cves:
@@ -294,7 +298,7 @@ CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
               "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt",
-              "upnp_types", "software", "cves"]
+              "upnp_types", "software", "dhcp_fingerprint", "eui64_global", "cves"]
 
 
 def _csv_safe(value):
@@ -334,6 +338,8 @@ def export_csv(devices, path):
                 "mdns_txt": " | ".join(sorted(d.mdns_txt)),
                 "upnp_types": " ".join(sorted(d.upnp_types)),
                 "software": " ".join(sorted(d.software)),
+                "dhcp_fingerprint": " | ".join(sorted(d.dhcp_fingerprint)),
+                "eui64_global": "sí" if d.eui64_global else "",
                 "cves": " | ".join(_cve_cell(c) for c in d.cves),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})

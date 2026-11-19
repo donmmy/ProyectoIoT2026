@@ -19,6 +19,7 @@ depende de IA en tiempo de ejecución.
 | 2026-11-16 | Claude (Claude Code) | Búsqueda de CVE (`--cve`) | `vulns.py`: NVD por CPE + CISA KEV con caché, ritmo de NVD y nivel de certeza (modelo / modelo+firmware); CVE aparte de las alertas en consola, JSON, CSV y GUI; 19 tests nuevos con NVD/KEV simulados. Diseño propuesto por Claude y aceptado por el autor ("si me parece mejor separarlo"); Claude cambió el plan inicial al comprobar que buscar en KEV por fabricante solo daba ruido. |
 | 2026-11-16 | Claude (Claude Code) | `--cve`: nivel fabricante y ejemplos | Clave de NVD en un fichero ignorado por git; nivel "fabricante (suposición)" con CVE recientes de hardware de la marca; `ejemplos/` regenerado; 10 tests nuevos. Pedido por el autor ("añade también los del nivel 2, con suposiciones que sean vulnerabilidades recientes"); Claude lo limitó a hardware (`h:`) y 2 años tras comprobar que `o:` daba cientos de CVE de Android. |
 | 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | SSDP y modelo de amenazas | Segunda lista de Qwen; el autor eligió 3: tipos UPnP (NT/ST) con regla y alerta IGD, versiones del banner SSDP y de DHCP (firmware frente a librería, con CVE de miniupnpd/libupnp/BusyBox) y `docs/THREAT_MODEL.md`; 18 tests nuevos. Descartadas: sal persistente para `--anonymize`, Aho-Corasick, `mypy`; hilo de la GUI y bridges Hue/HomeKit ya estaban. |
+| 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | Huella DHCP y EUI-64 | Tercera lista de Qwen; el autor eligió 2: huella DHCP (opción 55, campo `dhcp_fp` en las reglas) y alerta por IPv6 global con la MAC dentro (EUI-64); 20 tests nuevos. La tercera propuesta (TXT de mDNS) ya estaba hecha desde el 2026-11-16. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -78,13 +79,21 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 | Bridges Zigbee/Matter (`_zigbee._tcp`, `_hap._tcp`) | **Ya estaba** `_hap._tcp` y `_hue._tcp` en la regla de enchufes y bombillas. `_hap._tcp` es HomeKit (no Zigbee) y `_zigbee._tcp` no es un servicio estándar |
 | `docs/THREAT_MODEL.md` | Hecho, con STRIDE y citando el código de cada mitigación. Al redactarlo salió un riesgo no mitigado (sin límite de dispositivos) |
 
+### Tercera lista de Qwen (2026-11-19)
+
+| Propuesta de Qwen | Qué se hizo y por qué |
+|---|---|
+| Huella DHCP con la opción 55 ("o `requested_addr`") | Hecho con la **opción 55** (`param_req_list`); `requested_addr` es la opción 50, la IP pedida, y no sirve de huella. Campo `dhcp_fp` en las reglas (+3, coincidencia exacta). Sin reglas todavía: las huellas reales saldrán del Hito 6 (no se inventan) |
+| Marcar EUI-64 en direcciones link-local o globales | Hecho **solo para globales** (`2000::/3`) y con la MAC del propio equipo: en link-local EUI-64 es lo normal y no filtra nada fuera de la red local. Alerta BAJA |
+| Leer los TXT de mDNS | **Ya estaba** desde el 2026-11-16 (`_parse_txt`, `models`, `firmware`, lista blanca al anonimizar) |
+
 ### Prompt de la interfaz gráfica (2026-10-25)
 
 > "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 107 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 127 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la

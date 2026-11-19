@@ -227,8 +227,19 @@ def extra_rule_packets():
         pkts.append(_ssdp(ROUTER, "192.168.1.1", ssdp_message("NOTIFY * HTTP/1.1", [
             ("NT", nt), ("NTS", "ssdp:alive"), ("SERVER", "Linux/3.10 UPnP/1.0 miniupnpd/2.1"),
             ("LOCATION", "http://192.168.1.1:1900/rootDesc.xml")])))
-    # El sensor CoAP pide IP con el cliente DHCP de BusyBox (su versión es la de BusyBox)
-    pkts.append(_dhcp(COAP, [("vendor_class_id", b"udhcp 1.24.1")]))
+    # El sensor CoAP pide IP con el cliente DHCP de BusyBox (su versión es la de BusyBox).
+    # La opción 55 es una lista de EJEMPLO (no es la huella real de udhcp): sirve para probar
+    # que se lee en orden; las huellas reales se tomarán de los dispositivos del Hito 6
+    pkts.append(_dhcp(COAP, [("param_req_list", [1, 3, 6, 12, 15, 28, 42]),
+                             ("vendor_class_id", b"udhcp 1.24.1")]))
+    # El border router Thread usa también una IPv6 GLOBAL formada con su MAC (EUI-64):
+    # b8:27:eb:00:00:13 -> ba27:ebff:fe00:13 (bit U/L invertido y ff:fe en medio).
+    # 2001:db8::/32 es el rango de documentación (RFC 3849)
+    pkts.append(Ether(src=THREAD_BR, dst=GW) / IPv6(src="2001:db8:1::ba27:ebff:fe00:13", dst="2001:db8:2::1") /
+                UDP(sport=49153, dport=443))
+    # El NAS usa una IPv6 global con identificador aleatorio (RFC 4941): no filtra la MAC
+    pkts.append(Ether(src=NAS, dst=GW) / IPv6(src="2001:db8:1::5c1d:9a3e:71b2:4f08", dst="2001:db8:2::1") /
+                UDP(sport=49154, dport=443))
     # El móvil BUSCA un IGD (M-SEARCH): su ST es lo que busca, no lo que es
     pkts.append(_ssdp(ANDROID, "192.168.1.118", ssdp_message("M-SEARCH * HTTP/1.1", [
         ("MAN", '"ssdp:discover"'), ("MX", "2"), ("ST", "urn:schemas-upnp-org:device:InternetGatewayDevice:1"),
