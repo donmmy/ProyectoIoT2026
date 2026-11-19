@@ -224,10 +224,10 @@ class ScannerApp(ttk.Frame):
         pane = ttk.PanedWindow(dev_tab, orient="vertical")
         pane.pack(fill="both", expand=True)
 
-        cols = ("ip", "mac", "vendor", "hostname", "tipo", "conf", "pkts", "alertas", "cves")
-        heads = ("IP", "MAC", "Fabricante", "Hostname", "Tipo probable", "Confianza", "Paquetes",
+        cols = ("ip", "mac", "vendor", "hostname", "tipo", "conf", "riesgo", "pkts", "alertas", "cves")
+        heads = ("IP", "MAC", "Fabricante", "Hostname", "Tipo probable", "Confianza", "Riesgo", "Paquetes",
                  "Alertas", "CVE")
-        widths = (110, 130, 170, 140, 250, 80, 70, 60, 50)
+        widths = (110, 130, 170, 140, 250, 80, 70, 70, 60, 50)
         table_frame = ttk.Frame(pane)
         bar = ttk.Frame(table_frame)
         bar.pack(fill="x", pady=(0, 4))
@@ -440,6 +440,7 @@ class ScannerApp(ttk.Frame):
             self._set_text(t, "")
 
     def show_results(self, devices, summary):
+        risk_by_mac = {r["mac"]: r["level"] for r in summary.get("risk", [])}
         alerts_by_mac = {}
         for a in summary["alerts"]:
             alerts_by_mac[a["mac"]] = alerts_by_mac.get(a["mac"], 0) + 1
@@ -453,7 +454,7 @@ class ScannerApp(ttk.Frame):
             self.tree.insert("", "end", iid=d.mac, values=(
                 ip, d.mac, d.vendor, d.hostname or "-",
                 best.get("label", "Sin identificar"), best.get("confidence", "-"),
-                d.packet_count, alerts_by_mac.get(d.mac, 0) or "", len(d.cves) or ""))
+                risk_by_mac.get(d.mac, "-"), d.packet_count, alerts_by_mac.get(d.mac, 0) or "", len(d.cves) or ""))
             self._all_rows.append(d.mac)
         self._apply_filter()
 
@@ -529,7 +530,7 @@ class ScannerApp(ttk.Frame):
                            ("wsd_types", "WS-Discovery"), ("models", "Modelo"),
                            ("firmware", "Firmware"), ("mdns_txt", "TXT de mDNS"),
                            ("upnp_types", "Tipos UPnP (SSDP)"), ("software", "Librerías con versión"),
-                           ("dhcp_fingerprint", "Huella DHCP (opción 55)"),
+                           ("dhcp_fingerprint", "Huella DHCP (opción 55)"), ("ja3", "Huella TLS (JA3)"),
                            ("banners", "Banners")):
             values = d.get(key)
             if values:
@@ -546,6 +547,8 @@ class ScannerApp(ttk.Frame):
 
         def key(item):
             v = item[0]
+            if v in report.RISK_ORDER:        # ALTO, MEDIO, BAJO por gravedad, no por orden alfabético
+                return (0, report.RISK_ORDER[v])
             return (0, int(v)) if str(v).isdigit() else (1, str(v).lower())
         rows.sort(key=key, reverse=reverse)
         for i, (_, k) in enumerate(rows):

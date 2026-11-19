@@ -11,6 +11,7 @@ import struct
 import sys
 from pathlib import Path
 
+from scapy.layers.dhcp6 import DHCP6_Solicit, DHCP6OptClientFQDN, DHCP6OptVendorClass, VENDOR_CLASS_DATA
 from scapy.all import (ARP, BOOTP, DHCP, DNS, DNSQR, DNSRR, IP, TCP, UDP, Ether, IPv6,
                        NTPHeader, Raw, wrpcap)
 
@@ -237,6 +238,13 @@ def extra_rule_packets():
     # 2001:db8::/32 es el rango de documentación (RFC 3849)
     pkts.append(Ether(src=THREAD_BR, dst=GW) / IPv6(src="2001:db8:1::ba27:ebff:fe00:13", dst="2001:db8:2::1") /
                 UDP(sport=49153, dport=443))
+    # El border router pide también configuración por DHCPv6 (Solicit, puerto 546 -> 547) con su
+    # nombre (opción 39) y vendor class (opción 16; 4413 = número de empresa de ejemplo). Su
+    # hostname ya llegó por mDNS (openthread-br): el de DHCPv6 no lo sustituye
+    pkts.append(Ether(src=THREAD_BR, dst="33:33:00:01:00:02") /
+                IPv6(src="fe80::ba27:ebff:fe00:13", dst="ff02::1:2") / UDP(sport=546, dport=547) /
+                DHCP6_Solicit() / DHCP6OptClientFQDN(fqdn="otbr-cocina.local.") /
+                DHCP6OptVendorClass(enterprisenum=4413, vcdata=[VENDOR_CLASS_DATA(data=b"OpenThread BR 1.3")]))
     # El NAS usa una IPv6 global con identificador aleatorio (RFC 4941): no filtra la MAC
     pkts.append(Ether(src=NAS, dst=GW) / IPv6(src="2001:db8:1::5c1d:9a3e:71b2:4f08", dst="2001:db8:2::1") /
                 UDP(sport=49154, dport=443))

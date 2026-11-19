@@ -30,6 +30,7 @@ class Device:
     software: set = field(default_factory=set)     # librerías con versión (miniupnpd/2.1, udhcp/1.24.1)
     dhcp_fingerprint: set = field(default_factory=set)  # DHCP opción 55 en orden ("1,3,6,15,28")
     eui64_global: bool = False                     # IPv6 global con la MAC dentro (EUI-64)
+    ja3: set = field(default_factory=set)          # huella JA3 (MD5) de sus ClientHello TLS
     cves: list = field(default_factory=list)       # rellenado por vulns (--cve)
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
@@ -65,6 +66,7 @@ class Device:
             "software": sorted(self.software),
             "dhcp_fingerprint": sorted(self.dhcp_fingerprint),
             "eui64_global": self.eui64_global,
+            "ja3": sorted(self.ja3),
             "labels": self.labels,
             "cves": self.cves,
         }

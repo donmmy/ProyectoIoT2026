@@ -59,6 +59,7 @@ class Rule:
     wsd: set = field(default_factory=set)            # tipos WS-Discovery anunciados
     upnp: set = field(default_factory=set)           # tipos UPnP anunciados por SSDP (NT/ST)
     dhcp_fp: set = field(default_factory=set)        # huellas DHCP opción 55 exactas ("1,3,6,15")
+    ja3: set = field(default_factory=set)            # huellas JA3 (MD5) de la librería TLS
     _text_re: re.Pattern | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self):
@@ -74,7 +75,7 @@ class Rule:
 # ----------------------------------------------------------------------
 
 _PORT_FIELDS = ("served_ports", "client_ports")
-_NAME_FIELDS = ("mdns", "wsd", "upnp", "dhcp_fp")
+_NAME_FIELDS = ("mdns", "wsd", "upnp", "dhcp_fp", "ja3")
 _REGEX_FIELDS = ("text", "domains")
 _RULE_FIELDS = {"label", *_PORT_FIELDS, *_NAME_FIELDS, *_REGEX_FIELDS}
 
@@ -189,6 +190,9 @@ def evaluate_rule(rule, dev):
     # Huella DHCP: la lista y el orden de opciones los fija el cliente DHCP del sistema
     for fp in sorted(rule.dhcp_fp & dev.dhcp_fingerprint):
         evidence.append((f"huella DHCP {fp}", WEIGHT_STRONG))
+    # JA3: la librería TLS del cliente; en IoT es fija para un firmware
+    for h in sorted(rule.ja3 & dev.ja3):
+        evidence.append((f"huella TLS JA3 {h}", WEIGHT_STRONG))
 
     if rule._text_re:
         # Lo que el dispositivo dice de sí mismo (hostname, banners) pesa más que el
