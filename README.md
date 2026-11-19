@@ -14,7 +14,7 @@ Herramientas de Ciberseguridad*.
 | Hito | Contenido | Estado |
 |---|---|---|
 | 1 | Descubrimiento: ARP scan, red automática, fabricante por OUI | ✅ Hecho |
-| 2 | Escucha pasiva: DHCP, mDNS (con TXT: modelo y firmware), DNS, SSDP, NTP, SNI de TLS, IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
+| 2 | Escucha pasiva: DHCP, mDNS (con TXT: modelo y firmware), DNS, SSDP (tipo UPnP y versiones), NTP, SNI de TLS, IPv6 (Matter/Thread) y WS-Discovery/ONVIF | ✅ Hecho |
 | 3 | Identificación por reglas con pesos (`rules.json`) | ✅ Hecho |
 | 4 | Informe: tabla, JSON/CSV (anonimizable) y alertas | ✅ Hecho |
 | + | Vulnerabilidades conocidas (`--cve`): NVD por CPE y CISA KEV, con nivel de certeza | ✅ Hecho |
@@ -28,6 +28,7 @@ El detalle de decisiones, pendientes y sesiones está en [`docs/AGENT.md`](docs/
 | Carpeta | Contenido |
 |---|---|
 | [`programa/`](programa) | El programa: paquete `iot_scanner/`, CLI `net_device_scanner.py`, interfaz gráfica `gui.py`, lanzador `abrir_interfaz.bat`, tests, reglas `iot_scanner/rules.json` y requisitos (`requirements*.txt`, `requirements.lock`) |
+| [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) | Modelo de amenazas: qué protege la herramienta, de quién (STRIDE), qué no ve y riesgos residuales |
 | [`ejemplos/`](ejemplos) | Captura sintética `ejemplo_lab.pcap` y los informes que genera (JSON y CSV). No contienen datos de ninguna red real |
 | [`docs/`](docs) | Apuntes: [uso de IA](docs/AI_USAGE.md), [teoría → código](docs/programa_codigos.md) y [contexto para agentes de IA](docs/AGENT.md) |
 
@@ -126,10 +127,10 @@ python -m tests.lab_packets          # la regenera en ../ejemplos/ejemplo_lab.pc
 | Hito | Módulo | Qué hace |
 |---|---|---|
 | 1 | `iot_scanner/discovery.py` | Autodetección de interfaz y CIDR, ARP scan, fabricante por OUI (detecta MAC aleatorias). Si nadie responde al ARP (aislamiento de clientes) se pasa a modo solo-escucha. |
-| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS y sus registros TXT (modelo y firmware), banners SSDP y vendor class DHCP. Todo texto de red se sanea. |
+| 2 | `iot_scanner/sniffer.py` | Captura en vivo o desde `.pcap`, agrega por MAC. Extrae TCP/UDP/DNS/DHCP/mDNS/SSDP/ARP, NTP, SNI de TLS, IPv6 y WS-Discovery/ONVIF, puertos servidos (SYN-ACK) frente a puertos cliente, hostname por DHCP opción 12 o mDNS, servicios mDNS y sus registros TXT (modelo y firmware), banners SSDP y vendor class DHCP. De SSDP, el tipo UPnP (`NT`/`ST`) y las versiones del `SERVER`, separando firmware del producto y librerías (miniupnpd, BusyBox). Todo texto de red se sanea. |
 | 3 | `iot_scanner/heuristics.py` + `rules.json` | Reglas en JSON (RTSP, MQTT, CoAP, UPnP, Chromecast, impresoras, NAS...), validadas al cargar. Hasta 3 etiquetas por dispositivo; cada evidencia pesa según lo específica que es (fuerte 3, media 2, débil 1) y la confianza sale de la suma (baja 1-2, media 3-4, alta ≥5). |
-| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...). Anonimización opcional de lo exportado. |
-| + | `iot_scanner/vulns.py` | `--cve`: modelo → CPE (diccionario de NVD), CVE de NVD, nivel de certeza por versión, marca de CISA KEV, caché y ritmo de consultas. |
+| 4 | `iot_scanner/report.py` | Tabla por consola, JSON y CSV (protegido contra inyección de fórmulas), resumen con recuento, protocolos más comunes, tipos y alertas por puertos sensibles (Telnet, FTP, MQTT sin TLS, UPnP, RTSP...) y por UPnP IGD anunciado (el router abre puertos a quien se lo pida). Anonimización opcional de lo exportado. |
+| + | `iot_scanner/vulns.py` | `--cve`: modelo → CPE (diccionario de NVD), librerías de los banners (miniupnpd, libupnp, BusyBox), CVE de NVD, nivel de certeza por versión, marca de CISA KEV, caché y ritmo de consultas. |
 
 `iot_scanner/device.py` define el modelo de datos común, `iot_scanner/logsetup.py` el registro, `net_device_scanner.py` es la CLI y
 `gui.py` la interfaz gráfica (tkinter, incluido en Python; reutiliza las funciones de la CLI).

@@ -69,6 +69,17 @@ SERVICE_PRODUCTS = {
     "_esphomelib._tcp": ("esphome", "esphome"),
 }
 
+# Librerías que el sniffer saca de los banners (SSDP SERVER, vendor class de DHCP) con su
+# nombre CPE. Su versión es la de la librería, así que el rango se compara con ella.
+SOFTWARE_CPE = {
+    "miniupnpd": ("miniupnp_project", "miniupnpd"),
+    "libupnp": ("libupnp_project", "libupnp"),
+    "portable sdk for upnp devices": ("libupnp_project", "libupnp"),   # nombre largo de libupnp
+    "busybox": ("busybox", "busybox"),
+    "udhcp": ("busybox", "busybox"),       # el cliente DHCP de BusyBox lleva su versión
+    "dhcpcd": ("dhcpcd_project", "dhcpcd"),
+}
+
 # Palabras del modelo que no están en los nombres CPE y harían fallar la búsqueda
 MODEL_NOISE = {"series", "printer", "inc", "ltd", "co"}
 
@@ -236,6 +247,16 @@ def device_products(dev, client):
     return products
 
 
+def device_software(dev):
+    """Librerías con versión (banner SSDP, DHCP): {(fabricante, producto): {versiones}}."""
+    found = {}
+    for entry in dev.software:
+        name, _, version = entry.rpartition("/")
+        if name in SOFTWARE_CPE and version:
+            found.setdefault(SOFTWARE_CPE[name], set()).add(version)
+    return found
+
+
 # ----------------------------------------------------------------------
 # Paso 2 y 3: CVE del producto y nivel de certeza
 # ----------------------------------------------------------------------
@@ -319,7 +340,8 @@ def cpe_vendor(oui_vendor):
     """Marca del nombre OUI en minúsculas, como en CPE; None si no hay fabricante útil."""
     if not oui_vendor or oui_vendor.startswith(UNKNOWN_VENDORS):
         return None
-    for word in re.findall(r"[a-z0-9]+", oui_vendor.lower()):
+    # Con guiones dentro: "Tp-Link" es tp-link en CPE, no "tp" + "link"
+    for word in re.findall(r"[a-z0-9]+(?:-[a-z0-9]+)*", oui_vendor.lower()):
         if len(word) >= 3 and not word.isdigit() and word not in VENDOR_NOISE:
             return word
     return None
@@ -359,37 +381,43 @@ def _entry(cve_id, cve, kev, certainty, product):
 
 
 def lookup_device(dev, client, kev, memo=None, now=None):
-    """Rellena dev.cves. Devuelve (nivel de la búsqueda, CVE descartados por versión);
-    nivel = "modelo", "fabricante" o None si no había nada que buscar."""
+    """Rellena dev.cves. Devuelve (niveles usados, CVE descartados por versión); los niveles
+    son "modelo" (modelo o software del dispositivo), "software" (librería de un banner) y
+    "fabricante" (suposición)."""
     memo = {} if memo is None else memo
     products = device_products(dev, client) if dev.models or dev.mdns_services else {}
-    found, discarded, level = {}, 0, None
-    for (vendor, product), has_fw in sorted(products.items()):
-        level = "modelo"
+    # Qué buscar: (fabricante, producto, ¿hay CPE de firmware?, versiones, nivel, etiqueta)
+    targets = [(v, p, fw, dev.firmware, "modelo", f"{v}:{p}") for (v, p), fw in sorted(products.items())]
+    targets += [(v, p, False, versions, "software", f"{v}:{p} {'/'.join(sorted(versions))}")
+                for (v, p), versions in sorted(device_software(dev).items())]
+    found, discarded, levels = {}, 0, set()
+    for vendor, product, has_fw, versions, level, label in targets:
+        levels.add(level)
         if (vendor, product) not in memo:
             memo[(vendor, product)] = product_cves(vendor, product, has_fw, client)
         for cve_id, cve in memo[(vendor, product)].items():
-            certainty = assess(cve, products, dev.firmware)
+            certainty = assess(cve, {(vendor, product)}, versions)
             if certainty is None:
                 discarded += 1
                 continue
             prev = found.get(cve_id)
             if prev and CERTAINTY_ORDER[prev["certainty"]] <= CERTAINTY_ORDER[certainty]:
                 continue
-            found[cve_id] = _entry(cve_id, cve, kev, certainty, f"{vendor}:{product}")
+            found[cve_id] = _entry(cve_id, cve, kev, certainty, label)
 
-    # Sin producto CPE: suposición con lo reciente del fabricante
-    vendor = cpe_vendor(dev.vendor) if level is None else None
+    # Sin producto CPE del propio aparato: suposición con lo reciente del fabricante. Una
+    # librería (miniupnpd) no dice nada del hardware, así que no lo impide
+    vendor = cpe_vendor(dev.vendor) if not products else None
     if vendor:
-        level = "fabricante"
+        levels.add("fabricante")
         if ("vendor", vendor) not in memo:
             memo[("vendor", vendor)] = vendor_recent_cves(vendor, client, now)
         for cve_id, cve in memo[("vendor", vendor)]:
-            found[cve_id] = _entry(cve_id, cve, kev, "fabricante", f"{vendor}:* (hardware)")
+            found.setdefault(cve_id, _entry(cve_id, cve, kev, "fabricante", f"{vendor}:* (hardware)"))
 
     dev.cves = sorted(found.values(), key=lambda c: (not c["kev"], CERTAINTY_ORDER[c["certainty"]],
                                                      -(c["cvss"] or 0), c["id"]))
-    return level, discarded
+    return levels, discarded
 
 
 def lookup_all(devices, client=None, now=None):
@@ -399,19 +427,21 @@ def lookup_all(devices, client=None, now=None):
              "Con clave de NVD." if client.api_key else
              f"Sin clave de NVD cada consulta espera {NVD_PAUSE:.0f} s (ver nvd_api_key.txt).")
     kev = load_kev(client)
-    stats = {"searched": 0, "by_vendor": 0, "not_searched": 0, "no_cpe": 0, "cves": 0, "kev": 0,
-             "discarded_by_version": 0, "requests": 0, "errors": 0, "kev_loaded": bool(kev)}
+    stats = {"searched": 0, "by_software": 0, "by_vendor": 0, "not_searched": 0, "no_cpe": 0, "cves": 0,
+             "kev": 0, "discarded_by_version": 0, "requests": 0, "errors": 0, "kev_loaded": bool(kev)}
     memo = {}
     for dev in devices.values():
         has_model = bool(dev.models or (dev.mdns_services & SERVICE_PRODUCTS.keys()))
-        level, discarded = lookup_device(dev, client, kev, memo, now)
-        if level == "modelo":
+        levels, discarded = lookup_device(dev, client, kev, memo, now)
+        if "modelo" in levels:
             stats["searched"] += 1
-        elif level == "fabricante":
+        elif "fabricante" in levels:
             stats["by_vendor"] += 1
-        else:
+        elif not levels:
             stats["not_searched"] += 1
-        if has_model and level != "modelo":
+        if "software" in levels:
+            stats["by_software"] += 1
+        if has_model and "modelo" not in levels:
             stats["no_cpe"] += 1
         stats["discarded_by_version"] += discarded
         stats["cves"] += len(dev.cves)

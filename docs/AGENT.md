@@ -35,7 +35,7 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
 | 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
 
-Tests: **89 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **107 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -130,6 +130,12 @@ sniffing pasivo → extracción de metadatos → heurísticas → informe.
   `NVD_API_KEY` o de `programa/nvd_api_key.txt` (en `.gitignore`; `read_api_key()`), solo va
   en las peticiones a NVD y nunca se registra. Tests con
   NVD/KEV simulados (`tests/test_vulns.py`, CVE inventados CVE-1999-9xxx).
+- **SSDP** (2026-11-19, propuesta de Qwen): `NT` (NOTIFY) y `ST` (respuesta) dan el tipo UPnP
+  (`upnp_types`); el `ST` de un `M-SEARCH` no cuenta (es quien busca). `parse_server_banner()`
+  separa SO (núcleo), protocolo, librería (`software`: miniupnpd, libupnp, udhcp…) y producto
+  (`firmware`). Campo `upnp` en las reglas (+3, una vez aunque haya varios tipos). Alerta MEDIA
+  por UPnP IGD/WANIPConnection. `--cve` busca también las librerías (`SOFTWARE_CPE`) con su
+  versión. Modelo de amenazas en `docs/THREAT_MODEL.md`.
 - **WS-Discovery**: `Hello`/`Bye`/`ProbeMatches` los envía el dispositivo descubierto (tipos +
   scopes ONVIF); `Probe`/`Resolve` son de quien busca y no lo convierten en cámara. El XML se
   lee con regex acotadas (no con un parser XML: XXE/expansión de entidades), máx. 8 KB.
@@ -228,8 +234,8 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   corregido en `5c29e70` y la CI pasa en Python 3.12 y 3.14.
 - [x] Regenerar `ejemplos/` (2026-11-16): laboratorio + `extra_rule_packets()` e informes con `--cve`.
 - [x] TXT de mDNS: modelo y firmware (2026-11-16).
-- [ ] Sacar versiones de los banners que ya se guardan (SSDP `SERVER`, DHCP vendor class),
-  distinguiendo firmware de librería (`udhcp 1.24.1` es BusyBox, no el firmware).
+- [x] Versiones de los banners SSDP `SERVER` y DHCP (`udhcp`), firmware frente a librería (2026-11-19).
+- [ ] Límite de dispositivos (riesgo residual de `THREAT_MODEL.md`: inundación de MAC falsas).
 - [x] Búsqueda de vulnerabilidades `--cve` (2026-11-16): NVD por CPE + KEV, caché, certeza
   modelo / modelo+firmware / fabricante (suposición: CVE recientes de hardware de la marca).
 - [ ] CVE: más software en `SERVICE_PRODUCTS` (Shelly, Tasmota…) y probar con los
@@ -290,3 +296,6 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - **2026-11-16** — `--cve`: nivel **fabricante (suposición)** con CVE recientes de hardware de la
   marca (a petición del autor); clave de NVD en `programa/nvd_api_key.txt` (en `.gitignore`);
   `ejemplos/` regenerado (24 CVE en el ejemplo: 9 por modelo, 15 por fabricante). Tests 80 → 89.
+- **2026-11-19** — Segunda lista de **Qwen**: SSDP (tipos UPnP, regla y alerta IGD, versiones del
+  `SERVER` y de `udhcp`, CVE de librerías) y `docs/THREAT_MODEL.md` (STRIDE). Descartadas: sal
+  persistente, Aho-Corasick, mypy. Tests 89 → 107. Implementado por Claude.

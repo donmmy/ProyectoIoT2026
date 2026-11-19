@@ -150,6 +150,7 @@ def test_vendor_level_only_recent(devices):
     ("Tuya Smart Inc.", "tuya"),
     ("Google, Inc.", "google"),
     ("Raspberry Pi Trading Ltd", "raspberry"),
+    ("Tp-Link Technologies Co.,Ltd.", "tp-link"),
     ("Co., Ltd.", None),
     ("desconocido", None),
     ("MAC aleatoria/privada", None),

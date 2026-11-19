@@ -142,6 +142,7 @@ NAS = "00:11:32:00:00:15"       # OUI Synology
 APPLE = "f0:18:98:00:00:16"     # OUI Apple
 WINDOWS = "00:15:5d:00:00:17"   # OUI Microsoft
 ANDROID = "2c:d0:66:00:00:18"   # OUI Xiaomi
+ROUTER = "50:c7:bf:00:00:19"    # OUI TP-Link
 
 EXTRA_EXPECTED = {
     SPEAKER: "Altavoz / asistente inteligente",
@@ -152,6 +153,7 @@ EXTRA_EXPECTED = {
     APPLE: "Dispositivo Apple",
     WINDOWS: "Equipo Windows",
     ANDROID: "Móvil Android",
+    ROUTER: "Router / gateway",
 }
 
 
@@ -165,6 +167,16 @@ def _dhcp(mac, options):
     return (Ether(src=mac, dst="ff:ff:ff:ff:ff:ff") / IP(src=DHCP_NO_IP, dst="255.255.255.255") /
             UDP(sport=68, dport=67) / BOOTP(chaddr=bytes.fromhex(mac.replace(":", ""))) /
             DHCP(options=[("message-type", "request"), *options, "end"]))
+
+
+def ssdp_message(first_line, headers):
+    lines = [first_line, "HOST: 239.255.255.250:1900", *(f"{k}: {v}" for k, v in headers)]
+    return ("\r\n".join(lines) + "\r\n\r\n").encode()
+
+
+def _ssdp(mac, src, payload, sport=1900):
+    return (Ether(src=mac, dst="01:00:5e:7f:ff:fa") / IP(src=src, dst="239.255.255.250") /
+            UDP(sport=sport, dport=1900) / Raw(payload))
 
 
 def _dns_query(mac, src, name):
@@ -209,6 +221,18 @@ def extra_rule_packets():
     pkts.append(_dhcp(WINDOWS, [("hostname", b"DESKTOP-4F2K9QX"), ("vendor_class_id", b"MSFT 5.0")]))
     pkts.append(Ether(src=WINDOWS, dst="01:00:5e:7f:ff:fa") / IP(src="192.168.1.117", dst="239.255.255.250") /
                 UDP(sport=3702, dport=3702) / Raw(wsd_message("Hello", types="pub:Computer")))
+    # Router TP-Link: NOTIFY SSDP de UPnP IGD (abre puertos al que se lo pida) con miniupnpd
+    for nt in ("urn:schemas-upnp-org:device:InternetGatewayDevice:1",
+               "urn:schemas-upnp-org:service:WANIPConnection:1"):
+        pkts.append(_ssdp(ROUTER, "192.168.1.1", ssdp_message("NOTIFY * HTTP/1.1", [
+            ("NT", nt), ("NTS", "ssdp:alive"), ("SERVER", "Linux/3.10 UPnP/1.0 miniupnpd/2.1"),
+            ("LOCATION", "http://192.168.1.1:1900/rootDesc.xml")])))
+    # El sensor CoAP pide IP con el cliente DHCP de BusyBox (su versión es la de BusyBox)
+    pkts.append(_dhcp(COAP, [("vendor_class_id", b"udhcp 1.24.1")]))
+    # El móvil BUSCA un IGD (M-SEARCH): su ST es lo que busca, no lo que es
+    pkts.append(_ssdp(ANDROID, "192.168.1.118", ssdp_message("M-SEARCH * HTTP/1.1", [
+        ("MAN", '"ssdp:discover"'), ("MX", "2"), ("ST", "urn:schemas-upnp-org:device:InternetGatewayDevice:1"),
+        ("USER-AGENT", "Android/14 UPnP/1.0 Cling/2.0")]), sport=50000))
     # Móvil Android: DHCP "android-dhcp-14" y comprobación de conectividad de Google
     pkts.append(_dhcp(ANDROID, [("hostname", b"Redmi-Note-12"), ("vendor_class_id", b"android-dhcp-14")]))
     pkts.append(_dns_query(ANDROID, "192.168.1.118", "connectivitycheck.gstatic.com"))

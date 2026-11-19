@@ -102,7 +102,11 @@ def _parse_dhcp(pkt, dev):
         if opt[0] == "hostname":
             dev.hostname = sanitize_text(opt[1]) or dev.hostname
         elif opt[0] == "vendor_class_id":
-            dev.add("banners", "DHCP:" + (sanitize_text(opt[1]) or ""))
+            vendor_class = sanitize_text(opt[1]) or ""
+            dev.add("banners", "DHCP:" + vendor_class)
+            m = _DHCP_CLIENT.match(vendor_class)
+            if m:   # versión del cliente DHCP (librería), no del firmware
+                dev.add("software", f"{m.group(1).lower()}/{m.group(2)}")
 
 
 def _parse_mdns(pkt, dev):
@@ -161,15 +165,73 @@ def _parse_dns(pkt, dev):
                 dev.add("dns_queries", name.rstrip(".").lower())
 
 
+# Tipo UPnP en NT (NOTIFY) o ST (respuesta): urn:schemas-upnp-org:device:InternetGatewayDevice:1
+_UPNP_URN = re.compile(r"urn:[\w.-]{1,64}:(?:device|service):([A-Za-z0-9_-]{1,64}):\d{1,3}")
+
+# Banner SERVER de SSDP (UPnP 1.0, apartado 1.1.2): "SO/versión UPnP/1.0 producto/versión".
+# Cada pieza "nombre/versión" se clasifica: el SO (versión del núcleo, no del firmware),
+# el propio protocolo UPnP, una librería conocida (versión de la librería) o el producto
+# (esa sí es la versión del firmware del fabricante).
+_NAME_VERSION = re.compile(r"([A-Za-z][\w .+-]{0,40}?)/(\d[\w.+-]{0,24})")
+OS_NAMES = {"linux", "windows", "microsoft-windows", "android", "darwin", "freertos", "unix", "ecos",
+            "vxworks", "threadx", "zephyr", "os", "posix"}
+PROTOCOL_NAMES = {"upnp", "dlnadoc", "http", "dlna"}
+# Librerías: su versión no es la del firmware, pero tienen CVE propios (vulns.SOFTWARE_CPE)
+LIBRARY_NAMES = {"miniupnpd", "libupnp", "portable sdk for upnp devices", "intel sdk for upnp devices",
+                 "upnp-device-host", "rompager", "allegro-software-rompager", "goahead", "boa",
+                 "lighttpd", "busybox", "udhcp", "dhcpcd", "platinum", "cling"}
+# Vendor class de DHCP con la versión del cliente DHCP: "udhcp 1.24.1" (BusyBox), "dhcpcd-9.4.1:..."
+_DHCP_CLIENT = re.compile(r"^(udhcp|dhcpcd)[ -](\d[\w.]{0,24})", re.IGNORECASE)
+
+
+def parse_server_banner(banner):
+    """[(tipo, nombre, versión)] con tipo "so", "protocolo", "libreria" o "producto"."""
+    out = []
+    for i, (name, version) in enumerate(_NAME_VERSION.findall(banner or "")):
+        name = name.strip(" ,")
+        low = name.lower()
+        if low in PROTOCOL_NAMES:
+            kind = "protocolo"
+        elif low in LIBRARY_NAMES:
+            kind = "libreria"
+        elif i == 0 and (low in OS_NAMES or low.split("-")[0] in OS_NAMES):
+            kind = "so"
+        else:
+            kind = "producto"
+        out.append((kind, name, version))
+    return out
+
+
+def _add_versions(dev, banner):
+    for kind, name, version in parse_server_banner(banner):
+        if kind == "libreria":
+            dev.add("software", f"{name.lower()}/{version}")
+        elif kind == "producto":
+            dev.add("firmware", version)
+
+
 def _parse_ssdp(pkt, dev):
     dev.protocols.add("SSDP")
     if not pkt.haslayer(Raw):
         return
-    text = pkt[Raw].load.decode("utf-8", errors="ignore")
-    for line in text.split("\r\n"):
+    text = pkt[Raw].load[:4096].decode("utf-8", errors="ignore")
+    lines = text.split("\r\n")
+    first = lines[0].strip().upper()
+    # NOTIFY y la respuesta 200 OK los manda el dispositivo que se anuncia; un M-SEARCH
+    # es de quien busca: su ST es lo que busca, no lo que es (como Probe en WS-Discovery)
+    announces = first.startswith("NOTIFY") or first.startswith("HTTP/")
+    for line in lines[1:64]:
         key, _, val = line.partition(":")
-        if key.strip().upper() in ("SERVER", "USER-AGENT"):
-            dev.add("banners", "SSDP:" + (sanitize_text(val, 96) or ""))
+        key = key.strip().upper()
+        if key in ("SERVER", "USER-AGENT"):
+            banner = sanitize_text(val, 96) or ""
+            dev.add("banners", "SSDP:" + banner)
+            if key == "SERVER" and announces:
+                _add_versions(dev, banner)
+        elif key in ("NT", "ST") and announces:
+            m = _UPNP_URN.search(val)
+            if m:
+                dev.add("upnp_types", m.group(1))
 
 
 def _parse_ntp(pkt, dev, ip_dst):

@@ -26,6 +26,8 @@ class Device:
     mdns_txt: set = field(default_factory=set)     # registros TXT de mDNS ("clave=valor")
     models: set = field(default_factory=set)       # modelo anunciado (TXT md=, model=, ty=...)
     firmware: set = field(default_factory=set)     # versión de firmware anunciada (TXT ver=, fw_id=...)
+    upnp_types: set = field(default_factory=set)   # tipos UPnP anunciados por SSDP (InternetGatewayDevice...)
+    software: set = field(default_factory=set)     # librerías con versión (miniupnpd/2.1, udhcp/1.24.1)
     cves: list = field(default_factory=list)       # rellenado por vulns (--cve)
     packet_count: int = 0
     labels: list = field(default_factory=list)     # rellenado por heuristics
@@ -57,6 +59,8 @@ class Device:
             "mdns_txt": sorted(self.mdns_txt),
             "models": sorted(self.models),
             "firmware": sorted(self.firmware),
+            "upnp_types": sorted(self.upnp_types),
+            "software": sorted(self.software),
             "labels": self.labels,
             "cves": self.cves,
         }

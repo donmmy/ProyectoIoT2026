@@ -45,6 +45,18 @@ SENSITIVE_CLIENT = {
     5683: ("BAJA",  "Habla CoAP sin DTLS"),
 }
 
+# Tipos UPnP anunciados por SSDP que merecen revisión: tipo -> (severidad, motivo).
+# Un IGD (Internet Gateway Device) deja que cualquier equipo de la LAN abra puertos del
+# router hacia internet sin autenticarse (lo usan botnets y malware para exponer servicios)
+SENSITIVE_UPNP = {
+    "InternetGatewayDevice": ("MEDIA", "UPnP IGD anunciado: cualquier equipo de la LAN puede abrir "
+                                       "puertos del router hacia internet sin autenticación"),
+    "WANIPConnection": ("MEDIA", "UPnP WANIPConnection anunciado: permite pedir redirecciones de "
+                                 "puertos al router (AddPortMapping)"),
+    "WANPPPConnection": ("MEDIA", "UPnP WANPPPConnection anunciado: permite pedir redirecciones de "
+                                  "puertos al router (AddPortMapping)"),
+}
+
 SEVERITY_ORDER = {"ALTA": 0, "MEDIA": 1, "BAJA": 2}
 
 
@@ -80,6 +92,9 @@ def build_alerts(devices):
                 sev, msg = SENSITIVE_CLIENT[port]
                 alerts.append({"severity": sev, "device": who, "mac": dev.mac,
                                "port": port, "message": msg})
+        for t in sorted(dev.upnp_types & SENSITIVE_UPNP.keys()):
+            sev, msg = SENSITIVE_UPNP[t]
+            alerts.append({"severity": sev, "device": who, "mac": dev.mac, "port": 1900, "message": msg})
         # Un CVE solo pasa a alerta si es tan seguro y urgente como un Telnet abierto:
         # explotado activamente (KEV) y con la versión anunciada dentro del rango vulnerable
         for c in dev.cves:
@@ -252,7 +267,9 @@ def print_cves(summary):
         score = c["cvss"] if c["cvss"] is not None else "-"
         print(f"   {c['id']:<16} {score!s:<5} {kev:<4} {certainty_label(c['certainty']):<24} "
               f"{c['device']:<16} {c['product']}")
-    print(f"   Por modelo: {stats['searched']} dispositivos; solo por fabricante: {stats['by_vendor']} "
+    print(f"   Por modelo: {stats['searched']} dispositivos; "
+          f"por librería (banner): {stats.get('by_software', 0)}; "
+          f"solo por fabricante: {stats['by_vendor']} "
           f"(CVE recientes de su hardware, no confirmados); sin datos: {stats['not_searched']}; "
           f"{stats['discarded_by_version']} CVE descartados por versión.")
     if stats.get("errors"):
@@ -276,7 +293,8 @@ def export_json(devices, summary, path):
 CSV_FIELDS = ["ip", "mac", "vendor", "hostname", "source", "packet_count",
               "tipo_probable", "confianza", "evidencias", "protocols",
               "ports_src", "ports_dst", "mdns_services", "banners",
-              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt", "cves"]
+              "ipv6", "tls_sni", "ntp_servers", "wsd_types", "models", "firmware", "mdns_txt",
+              "upnp_types", "software", "cves"]
 
 
 def _csv_safe(value):
@@ -314,6 +332,8 @@ def export_csv(devices, path):
                 "models": " | ".join(sorted(d.models)),
                 "firmware": " | ".join(sorted(d.firmware)),
                 "mdns_txt": " | ".join(sorted(d.mdns_txt)),
+                "upnp_types": " ".join(sorted(d.upnp_types)),
+                "software": " ".join(sorted(d.software)),
                 "cves": " | ".join(_cve_cell(c) for c in d.cves),
             }
             w.writerow({k: _csv_safe(v) for k, v in row.items()})

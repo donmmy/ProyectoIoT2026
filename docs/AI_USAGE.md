@@ -18,6 +18,7 @@ depende de IA en tiempo de ejecución.
 | 2026-11-16 | Claude (Claude Code) | Hito 2 (TXT de mDNS) | Lectura de registros TXT: modelo y versión de firmware como base para la futura búsqueda de CVE; lista blanca de claves al anonimizar; 5 tests nuevos. Pedido por el autor ("pues añadimos la lectura de registros TXT") tras analizar con Claude qué información de firmware dejan escapar los IoT. |
 | 2026-11-16 | Claude (Claude Code) | Búsqueda de CVE (`--cve`) | `vulns.py`: NVD por CPE + CISA KEV con caché, ritmo de NVD y nivel de certeza (modelo / modelo+firmware); CVE aparte de las alertas en consola, JSON, CSV y GUI; 19 tests nuevos con NVD/KEV simulados. Diseño propuesto por Claude y aceptado por el autor ("si me parece mejor separarlo"); Claude cambió el plan inicial al comprobar que buscar en KEV por fabricante solo daba ruido. |
 | 2026-11-16 | Claude (Claude Code) | `--cve`: nivel fabricante y ejemplos | Clave de NVD en un fichero ignorado por git; nivel "fabricante (suposición)" con CVE recientes de hardware de la marca; `ejemplos/` regenerado; 10 tests nuevos. Pedido por el autor ("añade también los del nivel 2, con suposiciones que sean vulnerabilidades recientes"); Claude lo limitó a hardware (`h:`) y 2 años tras comprobar que `o:` daba cientos de CVE de Android. |
+| 2026-11-19 | **Qwen** (propuestas) + Claude (Claude Code, revisión e implementación) | SSDP y modelo de amenazas | Segunda lista de Qwen; el autor eligió 3: tipos UPnP (NT/ST) con regla y alerta IGD, versiones del banner SSDP y de DHCP (firmware frente a librería, con CVE de miniupnpd/libupnp/BusyBox) y `docs/THREAT_MODEL.md`; 18 tests nuevos. Descartadas: sal persistente para `--anonymize`, Aho-Corasick, `mypy`; hilo de la GUI y bridges Hue/HomeKit ya estaban. |
 
 ### Prompt del prototipo inicial (antes del 2026-10-18)
 
@@ -60,13 +61,30 @@ Claude revisó cada propuesta antes de implementarla y corrigió algunos detalle
 | `mypy` | Descartada por el autor: el código casi no tiene anotaciones y Scapy no tiene tipos. |
 | Resultados en tiempo real en la GUI | Descartada por el autor: mucho coste frente al Hito 6. |
 
+### Segunda lista de Qwen (2026-11-19)
+
+> El autor pegó otra lista de mejoras de **Qwen** (seguridad y privacidad, rendimiento,
+> reglas y documentación para la defensa). Claude comparó cada una con el código y el autor
+> eligió cuáles hacer.
+
+| Propuesta de Qwen | Qué se hizo y por qué |
+|---|---|
+| `--anonymize-salt fichero` para comparar informes | **No elegida** por el autor. Nota de Claude: con una clave guardada, quien tenga el fichero puede deshacer los seudónimos probando todas las IP; sería una clave HMAC en un fichero ignorado por git, no una "sal" |
+| Versión de firmware en banners HTTP, SSDP y mDNS | Hecho para **SSDP** (`SERVER`) y **DHCP** (`udhcp`), separando núcleo, protocolo, librería y producto. mDNS ya estaba (TXT, 2026-11-16). HTTP **no**: leer un banner web es conectarse al dispositivo (escaneo activo) |
+| Aho-Corasick en `heuristics.py` | **No elegida**: con 15 reglas no hay lentitud medida, añade una dependencia compilada y perdería el anclaje a inicio de palabra `(?<![a-z])` |
+| Type hints + `mypy` en la CI | **No elegida** (ya se descartó el 2026-10-26) |
+| Captura de la GUI en otro hilo | **Ya estaba**: el análisis corre en un `threading.Thread` (`gui.py`) con `stop_event` |
+| Regla UPnP IGD "en WS-Discovery o SSDP" | Hecho, pero solo en **SSDP**: `InternetGatewayDevice` no viaja en WS-Discovery. Campo `upnp` en las reglas (+3) y alerta MEDIA |
+| Bridges Zigbee/Matter (`_zigbee._tcp`, `_hap._tcp`) | **Ya estaba** `_hap._tcp` y `_hue._tcp` en la regla de enchufes y bombillas. `_hap._tcp` es HomeKit (no Zigbee) y `_zigbee._tcp` no es un servicio estándar |
+| `docs/THREAT_MODEL.md` | Hecho, con STRIDE y citando el código de cada mitigación. Al redactarlo salió un riesgo no mitigado (sin límite de dispositivos) |
+
 ### Prompt de la interfaz gráfica (2026-10-25)
 
 > "vale, puedes hacer una interfaz grafica para no tener que usar los comandos?"
 
 ## Validación del código generado
 
-- **Pruebas funcionales:** `pytest` con 89 casos sobre tráfico sintético (todos pasan); cobertura del paquete
+- **Pruebas funcionales:** `pytest` con 107 casos sobre tráfico sintético (todos pasan); cobertura del paquete
   `iot_scanner` 94 % y de las reglas 15/15. Se repiten en GitHub Actions en cada push.
   Pendiente: validación en laboratorio real comparando con Wireshark (Hito 6).
 - **Revisión de seguridad:** sin `eval`/`exec`/`subprocess`; el texto que llega de la

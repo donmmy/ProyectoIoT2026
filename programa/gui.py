@@ -496,6 +496,7 @@ class ScannerApp(ttk.Frame):
             lines += ["", f"CVE conocidos: {len(s.get('cves', []))} ({stats['kev']} en CISA KEV)",
                       f"   por modelo: {stats['searched']} dispositivos; solo por fabricante: {stats['by_vendor']}"
                       " (suposición: CVE recientes de su hardware)",
+                      f"   por librería de un banner (miniupnpd, BusyBox…): {stats.get('by_software', 0)}",
                       f"   sin datos para buscar: {stats['not_searched']}",
                       f"   {stats['discarded_by_version']} descartados porque la versión anunciada no es vulnerable"]
             if stats.get("errors"):
@@ -527,6 +528,7 @@ class ScannerApp(ttk.Frame):
                            ("ntp_servers", "Servidores NTP"), ("ipv6", "IPv6"),
                            ("wsd_types", "WS-Discovery"), ("models", "Modelo"),
                            ("firmware", "Firmware"), ("mdns_txt", "TXT de mDNS"),
+                           ("upnp_types", "Tipos UPnP (SSDP)"), ("software", "Librerías con versión"),
                            ("banners", "Banners")):
             values = d.get(key)
             if values:

@@ -46,23 +46,23 @@ hostname, servicios y banners.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:345-379` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
-| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:385` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
-| La MAC de origen identifica al emisor | `pkt[Ether].src` | `sniffer.py:272` | Clave para agrupar |
+| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:407-441` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
+| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:447` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
+| La MAC de origen identifica al emisor | `pkt[Ether].src` | `sniffer.py:334` | Clave para agrupar |
 | `0.0.0.0` / `::` = "sin dirección" (DHCP sin IP, ruta sin gateway) | `is_unspecified(ip)` con `ipaddress` | `discovery.py:26-31` | Sustituye las comparaciones con el literal `"0.0.0.0"` (avisos B104 de bandit) |
-| Bit I/G (0x01): multicast/broadcast no son emisores reales | `_is_unicast(mac)` | `sniffer.py:76-77`, `:273` | Descarta orígenes multicast; también se ignora la MAC propia |
-| Un dispositivo nuevo visto solo en pasivo | `_get_device(...)`, `source="pasivo"` | `sniffer.py:260-266` | Lo crea con fabricante por OUI (reutiliza el Hito 1) |
-| ARP gratuito / respuestas ARP de otros | `pkt[ARP].psrc` | `sniffer.py:280-284` | Saca la IP aunque haya aislamiento de clientes |
-| IP de origen (capa 3) | `pkt[IP].src` | `sniffer.py:286-290` | Rellena la IP si aún no se tiene (ignora `0.0.0.0` de DHCP) |
+| Bit I/G (0x01): multicast/broadcast no son emisores reales | `_is_unicast(mac)` | `sniffer.py:76-77`, `:335` | Descarta orígenes multicast; también se ignora la MAC propia |
+| Un dispositivo nuevo visto solo en pasivo | `_get_device(...)`, `source="pasivo"` | `sniffer.py:322-328` | Lo crea con fabricante por OUI (reutiliza el Hito 1) |
+| ARP gratuito / respuestas ARP de otros | `pkt[ARP].psrc` | `sniffer.py:342-346` | Saca la IP aunque haya aislamiento de clientes |
+| IP de origen (capa 3) | `pkt[IP].src` | `sniffer.py:348-352` | Rellena la IP si aún no se tiene (ignora `0.0.0.0` de DHCP) |
 
 ### Puertos: cliente vs. servidor (capa 4)
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Handshake TCP: SYN → SYN+ACK → ACK; quien manda SYN+ACK es el servidor | `pkt[TCP].flags & 0x12 == 0x12` | `sniffer.py:302-303` | SYN (0x02) + ACK (0x10) → el puerto origen es un servicio que ofrece (`ports_src`) |
-| Puerto destino = servicio al que se conecta (cliente) | `dev.add("ports_dst", dport)` | `sniffer.py:314-315` | Ej.: 1883 = se conecta a un broker MQTT |
-| Puertos efímeros (IANA ≥ 49152) son del cliente, ruido | `dport < EPHEMERAL_START` | `sniffer.py:36`, `:314` | No guarda puertos efímeros |
-| UDP no tiene handshake: puerto origen bajo ≈ servicio propio | `sport < 1024 and sport not in UDP_CLIENT_LOW_PORTS` | `sniffer.py:41`, `:317-319` | DHCP (67/68) y NTP (123) se excluyen porque el cliente también los usa como origen |
+| Handshake TCP: SYN → SYN+ACK → ACK; quien manda SYN+ACK es el servidor | `pkt[TCP].flags & 0x12 == 0x12` | `sniffer.py:364-365` | SYN (0x02) + ACK (0x10) → el puerto origen es un servicio que ofrece (`ports_src`) |
+| Puerto destino = servicio al que se conecta (cliente) | `dev.add("ports_dst", dport)` | `sniffer.py:376-377` | Ej.: 1883 = se conecta a un broker MQTT |
+| Puertos efímeros (IANA ≥ 49152) son del cliente, ruido | `dport < EPHEMERAL_START` | `sniffer.py:36`, `:376` | No guarda puertos efímeros |
+| UDP no tiene handshake: puerto origen bajo ≈ servicio propio | `sport < 1024 and sport not in UDP_CLIENT_LOW_PORTS` | `sniffer.py:41`, `:379-381` | DHCP (67/68) y NTP (123) se excluyen porque el cliente también los usa como origen |
 | Servicios UDP altos que delatan a un servidor | `UDP_SERVER_PORTS = {1900, 5683, 5684, 5540}` | `sniffer.py:38` | SSDP/UPnP, CoAP (5683) / CoAP sobre DTLS (5684) y Matter (5540) |
 
 ### Capa 7: lo que el dispositivo cuenta de sí mismo
@@ -70,13 +70,13 @@ hostname, servicios y banners.
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
 | DHCP opción 12 = hostname que pide el cliente | `opt[0] == "hostname"` | `sniffer.py:102-103` | Fuente preferida de hostname |
-| DHCP opción 60 = vendor class (cliente DHCP / SO) | `opt[0] == "vendor_class_id"` | `sniffer.py:104-105` | Banner `DHCP:...` (ej. `udhcp`, `android-dhcp`, `MSFT 5.0`) |
-| mDNS = DNS multicast en `224.0.0.251:5353`, nombres `.local` | `PORT_MDNS in (sport, dport)` | `sniffer.py:30`, `:326-327` | Separa mDNS del DNS normal por el puerto |
-| DNS-SD: servicios `_servicio._tcp.local` | `re.search(r"(_[\w\-]+\._(?:tcp\|udp))\.local$", name)` | `sniffer.py:119-121` | Ej.: `_googlecast._tcp` = Chromecast, `_hap._tcp` = HomeKit |
-| Registro A (1) / AAAA (28) en respuesta mDNS = "mi nombre es X.local" | `dns.qr == 1 and rr.type in (1, 28)` | `sniffer.py:123-124` | Hostname por mDNS (solo si DHCP no dio uno) |
+| DHCP opción 60 = vendor class (cliente DHCP / SO) | `opt[0] == "vendor_class_id"` | `sniffer.py:104-109` | Banner `DHCP:...` (ej. `udhcp`, `android-dhcp`, `MSFT 5.0`) |
+| mDNS = DNS multicast en `224.0.0.251:5353`, nombres `.local` | `PORT_MDNS in (sport, dport)` | `sniffer.py:30`, `:388-389` | Separa mDNS del DNS normal por el puerto |
+| DNS-SD: servicios `_servicio._tcp.local` | `re.search(r"(_[\w\-]+\._(?:tcp\|udp))\.local$", name)` | `sniffer.py:123-125` | Ej.: `_googlecast._tcp` = Chromecast, `_hap._tcp` = HomeKit |
+| Registro A (1) / AAAA (28) en respuesta mDNS = "mi nombre es X.local" | `dns.qr == 1 and rr.type in (1, 28)` | `sniffer.py:127-128` | Hostname por mDNS (solo si DHCP no dio uno) |
 | Secciones DNS (qd, an, ar) son listas en Scapy ≥ 2.5 | `_dns_records(section)` | `sniffer.py:84-94` | Recorre los registros en ambos formatos (lista y encadenado) |
-| DNS: `qr = 0` es consulta | `if dns.qr == 0` | `sniffer.py:157-161` | Dominios que resuelve (a qué nube habla: `hik-connect.com`, `tuyaeu.com`...) |
-| SSDP/UPnP: anuncios HTTP sobre UDP 1900 | `key in ("SERVER", "USER-AGENT")` | `sniffer.py:171-172` | Banner con SO y modelo (ej. `Linux/3.10 UPnP/1.0 IPCamera`) |
+| DNS: `qr = 0` es consulta | `if dns.qr == 0` | `sniffer.py:161-165` | Dominios que resuelve (a qué nube habla: `hik-connect.com`, `tuyaeu.com`...) |
+| SSDP/UPnP: anuncios HTTP sobre UDP 1900 | `key in ("SERVER", "USER-AGENT")` | `sniffer.py:226-230` | Banner con SO y modelo (ej. `Linux/3.10 UPnP/1.0 IPCamera`) |
 
 ### Seguridad: el texto de la red es entrada no confiable
 
@@ -85,7 +85,7 @@ hostname, servicios y banners.
 | Inyección vía campos de red (riesgo del PDF) | `_SAFE_CHARS = re.compile(r"[^A-Za-z0-9 ._\-:/()+@,=]")` | `sniffer.py:63` | Lista blanca: todo lo demás se borra (secuencias ANSI, `<`, `;`, comillas, saltos de línea) |
 | Limitar longitud | `value[:max_len]` | `sniffer.py:73` | 64 caracteres por defecto (128 nombres DNS, 96 banners SSDP) |
 | Bytes con codificación inválida | `decode("utf-8", errors="ignore")` | `sniffer.py:71` | No revienta con bytes basura |
-| Un dispositivo ruidoso no infla la memoria | `MAX_ITEMS = 64` | `device.py:6`, `:33-37` | Máximo 64 elementos por conjunto |
+| Un dispositivo ruidoso no infla la memoria | `MAX_ITEMS = 64` | `device.py:6`, `:35-39` | Máximo 64 elementos por conjunto |
 
 **Puntos débiles detectados:**
 - En una red con switch o WiFi solo se ve el tráfico propio + broadcast/multicast; el
@@ -109,26 +109,26 @@ dispositivo no use IPv4. Añadidas el 2026-10-21 (código asistido por IA).
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| NTP = UDP 123; casi todo IoT sincroniza la hora y el servidor elegido delata al fabricante | `PORT_NTP in (sport, dport) and pkt.haslayer(NTP)` | `sniffer.py:321-322` | Scapy disecciona el NTP; se marca el protocolo |
-| Campo `mode` del NTP: 3 = cliente, 4 = respuesta de servidor, 5 = broadcast | `_parse_ntp(pkt, dev, ip_dst)` | `sniffer.py:175-182` | Cliente → guarda la IP del servidor en `ntp_servers`; servidor → `ports_src` 123 |
-| ntpd usa el 123 también como puerto origen del cliente | `UDP_CLIENT_LOW_PORTS = {67, 68, 123}` | `sniffer.py:41`, `:318` | Evita marcar como "servidor NTP" a un cliente (falso positivo que tenía el Hito 2) |
+| NTP = UDP 123; casi todo IoT sincroniza la hora y el servidor elegido delata al fabricante | `PORT_NTP in (sport, dport) and pkt.haslayer(NTP)` | `sniffer.py:383-384` | Scapy disecciona el NTP; se marca el protocolo |
+| Campo `mode` del NTP: 3 = cliente, 4 = respuesta de servidor, 5 = broadcast | `_parse_ntp(pkt, dev, ip_dst)` | `sniffer.py:237-244` | Cliente → guarda la IP del servidor en `ntp_servers`; servidor → `ports_src` 123 |
+| ntpd usa el 123 también como puerto origen del cliente | `UDP_CLIENT_LOW_PORTS = {67, 68, 123}` | `sniffer.py:41`, `:380` | Evita marcar como "servidor NTP" a un cliente (falso positivo que tenía el Hito 2) |
 
 ### TLS: el nombre del servidor viaja en claro (SNI)
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| HTTPS va cifrado, pero el primer mensaje (ClientHello) no: lleva el SNI para que el servidor sepa qué certificado dar | `tls_sni(data)` | `sniffer.py:215-245` | Parser manual del ClientHello sin dependencias |
-| Registro TLS `0x16` (handshake), versión `0x03xx`, mensaje `0x01` (ClientHello) | `data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01` | `sniffer.py:225` | Descarta todo lo que no es un ClientHello |
-| Estructura: versión, random (32), session id, cipher suites, compresión, extensiones | `pos += ...` | `sniffer.py:227-231` | Salta los campos de longitud variable leyendo su longitud |
-| Extensión `0x0000` = server_name; tipo 0 = host_name | `ext_type == 0x0000` | `sniffer.py:236-241` | Devuelve el nombre; si está cortado, `None` |
-| Entrada no confiable | `sanitize_text(tls_sni(...), 128)` | `sniffer.py:304-308` | El SNI se sanea igual que hostname y banners |
-| Un dominio es un dominio, venga de DNS o de TLS | `seen = [("consulta", d) ...] + [("TLS a", d) ...]` | `heuristics.py:194-201` | El SNI alimenta la misma regex `domains` de las reglas; cuenta como una sola evidencia |
+| HTTPS va cifrado, pero el primer mensaje (ClientHello) no: lleva el SNI para que el servidor sepa qué certificado dar | `tls_sni(data)` | `sniffer.py:277-307` | Parser manual del ClientHello sin dependencias |
+| Registro TLS `0x16` (handshake), versión `0x03xx`, mensaje `0x01` (ClientHello) | `data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01` | `sniffer.py:287` | Descarta todo lo que no es un ClientHello |
+| Estructura: versión, random (32), session id, cipher suites, compresión, extensiones | `pos += ...` | `sniffer.py:289-293` | Salta los campos de longitud variable leyendo su longitud |
+| Extensión `0x0000` = server_name; tipo 0 = host_name | `ext_type == 0x0000` | `sniffer.py:298-303` | Devuelve el nombre; si está cortado, `None` |
+| Entrada no confiable | `sanitize_text(tls_sni(...), 128)` | `sniffer.py:366-370` | El SNI se sanea igual que hostname y banners |
+| Un dominio es un dominio, venga de DNS o de TLS | `seen = [("consulta", d) ...] + [("TLS a", d) ...]` | `heuristics.py:201-208` | El SNI alimenta la misma regex `domains` de las reglas; cuenta como una sola evidencia |
 
 ### Matter / Thread: IPv6 y mDNS
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Matter va sobre IPv6 (link-local `fe80::`) y se anuncia por mDNS en `ff02::fb` | `elif pkt.haslayer(IPv6)` | `sniffer.py:291-295` | Guarda las direcciones IPv6 en `ipv6` (antes se perdían) |
+| Matter va sobre IPv6 (link-local `fe80::`) y se anuncia por mDNS en `ff02::fb` | `elif pkt.haslayer(IPv6)` | `sniffer.py:353-357` | Guarda las direcciones IPv6 en `ipv6` (antes se perdían) |
 | Matter operativo = UDP 5540 | `PORT_MATTER = 5540` en `UDP_SERVER_PORTS` | `sniffer.py:34`, `:38` | Puerto servido |
 | DNS-SD de Matter: `_matter._tcp` (ya emparejado), `_matterc._udp` (por emparejar), `_matterd._udp` (controlador) | regla `Dispositivo Matter` | `rules.json:57-62` | La regex de servicios mDNS del Hito 2 ya los captura sin cambios |
 | Thread no es IP en tu WiFi: solo se ve su border router (`_meshcop._udp`, `_trel._udp`) | regla `Border router Thread / controlador Matter` | `rules.json:63-67` | Identifica el puente, no los nodos Thread |
@@ -137,12 +137,12 @@ dispositivo no use IPv4. Añadidas el 2026-10-21 (código asistido por IA).
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| WS-Discovery = SOAP/XML por UDP 3702 a `239.255.255.250` / `ff02::c` (multicast: llega sin port mirroring) | `PORT_WSD in (sport, dport)` | `sniffer.py:35`, `:332-333` | Activa el extractor |
-| Quién envía cada mensaje: `Hello`/`Bye`/`ProbeMatches` el dispositivo descubierto; `Probe`/`Resolve` quien busca (NVR, app, Windows) | `WSD_TARGET_ACTIONS`; `action not in ...` | `sniffer.py:45`, `:197-199` | Solo el dispositivo descubierto gana tipos y `ports_src` 3702; un `Probe` no lo convierte en cámara |
-| `Types`: qué es (`dn:NetworkVideoTransmitter` = cámara ONVIF, `PrintDeviceType`, `pub:Computer`) | `_WSD_TYPES`; `dev.add("wsd_types", ...)` | `sniffer.py:50`, `:200-202` | Se guarda el nombre sin prefijo XML |
-| `Scopes` ONVIF: `onvif://www.onvif.org/name/...`, `/hardware/...` (modelo) | `ONVIF_SCOPE_KEYS`; `unquote` | `sniffer.py:52`, `:203-208` | Banners `ONVIF:hardware=DS-2CD2043G2-I`, `ONVIF:name=...` (sirven a la regex de texto y, en el futuro, a buscar CVE por modelo) |
+| WS-Discovery = SOAP/XML por UDP 3702 a `239.255.255.250` / `ff02::c` (multicast: llega sin port mirroring) | `PORT_WSD in (sport, dport)` | `sniffer.py:35`, `:394-395` | Activa el extractor |
+| Quién envía cada mensaje: `Hello`/`Bye`/`ProbeMatches` el dispositivo descubierto; `Probe`/`Resolve` quien busca (NVR, app, Windows) | `WSD_TARGET_ACTIONS`; `action not in ...` | `sniffer.py:45`, `:259-261` | Solo el dispositivo descubierto gana tipos y `ports_src` 3702; un `Probe` no lo convierte en cámara |
+| `Types`: qué es (`dn:NetworkVideoTransmitter` = cámara ONVIF, `PrintDeviceType`, `pub:Computer`) | `_WSD_TYPES`; `dev.add("wsd_types", ...)` | `sniffer.py:50`, `:262-264` | Se guarda el nombre sin prefijo XML |
+| `Scopes` ONVIF: `onvif://www.onvif.org/name/...`, `/hardware/...` (modelo) | `ONVIF_SCOPE_KEYS`; `unquote` | `sniffer.py:52`, `:265-270` | Banners `ONVIF:hardware=DS-2CD2043G2-I`, `ONVIF:name=...` (sirven a la regex de texto y, en el futuro, a buscar CVE por modelo) |
 | XML no confiable: un parser XML se expone a entidades externas (XXE) o expansión de entidades | regex acotadas `{0,256}`, `[^<]`; `WSD_MAX_BYTES = 8192` | `sniffer.py:46-51` | Sin parser, sin backtracking catastrófico, tamaño limitado y texto saneado |
-| El tipo lo declara el propio dispositivo y es muy específico | `rule.wsd & dev.wsd_types` → `WEIGHT_STRONG` | `heuristics.py:179-180` | +3 para cámara, impresora o Windows |
+| El tipo lo declara el propio dispositivo y es muy específico | `rule.wsd & dev.wsd_types` → `WEIGHT_STRONG` | `heuristics.py:180-181` | +3 para cámara, impresora o Windows |
 | ONVIF activo revela el modelo | `SENSITIVE_SERVED[3702]` | `report.py:37` | Alerta BAJA: revisar la autenticación ONVIF |
 
 Límite: el `Hello` solo se envía al conectarse el dispositivo a la red, y la respuesta a un
@@ -166,14 +166,14 @@ pasiva más rentable para subir de "fabricante" a "modelo" o "modelo + versión"
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| DNS-SD (RFC 6763): cada servicio mDNS puede llevar un registro TXT (tipo 16) con pares `clave=valor` | `rr.type == TXT_TYPE` | `sniffer.py:58`, `:126-127` | Solo en respuestas (`qr = 1`), que son lo que el dispositivo dice de sí mismo |
-| En Scapy ≥ 2.5 el `rdata` de un TXT es una lista de bytes | `_txt_pairs(rdata)` | `sniffer.py:130-140` | Decodifica, separa por el primer `=`, sanea clave (32) y valor (96) y lee como mucho 32 pares |
-| Las claves no distinguen mayúsculas (RFC 6763, 6.4); una clave sin `=` es un booleano | `key.lower()`; `value = None` | `sniffer.py:139` | `MODEL=` cuenta como `model=`; `solo_clave` se guarda tal cual |
+| DNS-SD (RFC 6763): cada servicio mDNS puede llevar un registro TXT (tipo 16) con pares `clave=valor` | `rr.type == TXT_TYPE` | `sniffer.py:58`, `:130-131` | Solo en respuestas (`qr = 1`), que son lo que el dispositivo dice de sí mismo |
+| En Scapy ≥ 2.5 el `rdata` de un TXT es una lista de bytes | `_txt_pairs(rdata)` | `sniffer.py:134-144` | Decodifica, separa por el primer `=`, sanea clave (32) y valor (96) y lee como mucho 32 pares |
+| Las claves no distinguen mayúsculas (RFC 6763, 6.4); una clave sin `=` es un booleano | `key.lower()`; `value = None` | `sniffer.py:143` | `MODEL=` cuenta como `model=`; `solo_clave` se guarda tal cual |
 | Cada fabricante usa sus claves para modelo y versión | `TXT_MODEL_KEYS`, `TXT_FIRMWARE_KEYS` | `sniffer.py:59-60` | Modelo: `md` (Google), `model`, `ty` y `product` (impresoras), `app` (Shelly). Firmware: `ver` (Shelly), `version` (ESPHome), `fw_id`, `osvers`… |
 | No todo lo que parece versión es firmware | (excluidas a propósito) | `sniffer.py:54-57` | `txtvers` = versión del **formato** del TXT; `ve` en Chromecast = versión del **protocolo** |
-| Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:143-151`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
-| El modelo es texto que el dispositivo dice de sí mismo | `own = hostname + models + banners` | `heuristics.py:185` | Pesa +2 en las reglas (frente a +1 del fabricante por OUI) |
-| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:157-164`, `:184` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
+| Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:147-155`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
+| El modelo es texto que el dispositivo dice de sí mismo | `own = hostname + models + banners` | `heuristics.py:192` | Pesa +2 en las reglas (frente a +1 del fabricante por OUI) |
+| Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:172-179`, `:199` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
 
 Límites: el saneado solo admite ASCII (`Salón` queda como `Saln`); no todos los
 fabricantes usan las mismas claves, así que habrá TXT con versión que no se reconozcan
@@ -184,10 +184,10 @@ anuncia servicios por mDNS.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:355-356` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
-| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:357-367` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
-| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:336-342`, `:369-372` | Reintenta hasta 5 s hasta que la captura para de verdad |
-| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:373-374` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
+| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:417-418` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
+| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:419-429` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
+| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:398-404`, `:431-434` | Reintenta hasta 5 s hasta que la captura para de verdad |
+| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:435-436` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
 | Se analiza lo capturado hasta el corte | `listened = round(time.monotonic() - t0)` | `net_device_scanner.py` (`run_live`) | El informe guarda los segundos escuchados de verdad |
 | Botón Detener solo durante la escucha | `self.stop_btn`, `self.stop_event.set()` | `gui.py` (`_start`, `_stop`) | Activo en modos con escucha en vivo; se desactiva al terminar |
 
@@ -226,37 +226,37 @@ Sin datos reales para calcular los cocientes (eso es el Hito 6), se usan tres ni
 | Puertos genéricos → débiles | `"weak_ports": [80, 443, 1900, ...]` → `WEAK_PORTS` | `rules.json:6`, `heuristics.py:33` | Web y UPnP: los sirve casi cualquier cosa |
 | El resto de puertos → medio | `port_weight(port)` | `heuristics.py:39-44` | Puertos de protocolo característico: 554 RTSP, 1883 MQTT, 631 IPP |
 | Servicios mDNS: específicos salvo los compartidos | `"medium_mdns"` → `MEDIUM_MDNS`, `mdns_weight()` | `rules.json:7`, `heuristics.py:47-48` | `_googlecast._tcp` = 3; `_airplay._tcp` (Apple TV, Mac, altavoces) = 2 |
-| Lo que el dispositivo dice de sí mismo pesa más que su fabricante | `own = hostname + banners` → +2; si no, `vendor` → +1 | `heuristics.py:182-192` | **Fabricante ≠ tipo**: un móvil Google ya no pasa de "baja" como TV |
-| Dominio de la nube del fabricante → fuerte | `WEIGHT_STRONG` | `heuristics.py:194-201` | `hik-connect.com`, `tuyaeu.com` (DNS o SNI de TLS) |
+| Lo que el dispositivo dice de sí mismo pesa más que su fabricante | `own = hostname + banners` → +2; si no, `vendor` → +1 | `heuristics.py:189-199` | **Fabricante ≠ tipo**: un móvil Google ya no pasa de "baja" como TV |
+| Dominio de la nube del fabricante → fuerte | `WEIGHT_STRONG` | `heuristics.py:201-208` | `hik-connect.com`, `tuyaeu.com` (DNS o SNI de TLS) |
 | El peso solo afecta a identificar, no al riesgo | (sin cambios en `report.py`) | `report.py:25-46` | El 80 y el 1900 siguen generando sus alertas de seguridad |
 
 ### Las reglas
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Una regla = un tipo de dispositivo + sus pistas | `@dataclass class Rule` | `heuristics.py:51-67` | Campos: `served_ports`, `client_ports`, `mdns`, `text` (regex), `domains` (regex) |
+| Una regla = un tipo de dispositivo + sus pistas | `@dataclass class Rule` | `heuristics.py:51-68` | Campos: `served_ports`, `client_ports`, `mdns`, `text` (regex), `domains` (regex) |
 | Cada pista viene de una señal del Hito 2 | campos de `Rule` ↔ campos de `Device` | `heuristics.py:54-59` | `served_ports`↔`ports_src`, `client_ports`↔`ports_dst`, `mdns`↔`mdns_services`, `text`↔hostname+banners (o fabricante), `domains`↔`dns_queries`+`tls_sni` |
-| La regex de texto solo casa al **inicio de palabra** | `(?<![a-z])(?:...)` en `__post_init__` | `heuristics.py:62-67` | `esp` casa con `ESP_32AB` y `esp32-x` pero no con `despacho-pc`; por la derecha no se limita para no perder `IPCamera` |
-| Base de conocimiento | `"rules": [...]` → `RULES` | `rules.json:14-112`, `heuristics.py:146-155` | 15 tipos: cámara, TV, altavoz, MQTT, CoAP, enchufe, Matter, Thread, UPnP, impresora, router, NAS, Apple, Windows, Android |
+| La regex de texto solo casa al **inicio de palabra** | `(?<![a-z])(?:...)` en `__post_init__` | `heuristics.py:63-68` | `esp` casa con `ESP_32AB` y `esp32-x` pero no con `despacho-pc`; por la derecha no se limita para no perder `IPCamera` |
+| Base de conocimiento | `"rules": [...]` → `RULES` | `rules.json:14-112`, `heuristics.py:147-156` | 15 tipos: cámara, TV, altavoz, MQTT, CoAP, enchufe, Matter, Thread, UPnP, impresora, router, NAS, Apple, Windows, Android |
 
 ### Evaluar una regla: reunir evidencias
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Coincidencia por intersección de conjuntos | `rule.served_ports & dev.ports_src` | `heuristics.py:170-173` | Cada puerto que coincide es una evidencia, con su peso |
-| **Sin doble conteo**: un puerto servido no vuelve a contar como cliente | `(rule.client_ports & dev.ports_dst) - served` | `heuristics.py:174-175` | Un solo paquete SSDP 1900 → 1900 es una pista, no dos |
-| Servicios mDNS | `rule.mdns & dev.mdns_services` | `heuristics.py:176-177` | Una evidencia por servicio |
-| Dominios (DNS y SNI) | `seen = [...]` + `break` | `heuristics.py:194-201` | **Una** evidencia como máximo, venga de DNS o de TLS |
-| Evidencias explicables **con su peso** | `f"{desc} (+{w})"` | `heuristics.py:216` | El informe muestra, p. ej., `sirve puerto 554 (+2)`: el analista ve por qué y cuánto |
+| Coincidencia por intersección de conjuntos | `rule.served_ports & dev.ports_src` | `heuristics.py:171-174` | Cada puerto que coincide es una evidencia, con su peso |
+| **Sin doble conteo**: un puerto servido no vuelve a contar como cliente | `(rule.client_ports & dev.ports_dst) - served` | `heuristics.py:175-176` | Un solo paquete SSDP 1900 → 1900 es una pista, no dos |
+| Servicios mDNS | `rule.mdns & dev.mdns_services` | `heuristics.py:177-178` | Una evidencia por servicio |
+| Dominios (DNS y SNI) | `seen = [...]` + `break` | `heuristics.py:201-208` | **Una** evidencia como máximo, venga de DNS o de TLS |
+| Evidencias explicables **con su peso** | `f"{desc} (+{w})"` | `heuristics.py:223` | El informe muestra, p. ej., `sirve puerto 554 (+2)`: el analista ve por qué y cuánto |
 
 ### Puntuar y decidir
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Puntuación = suma de pesos | `score = sum(w for _, w in ev)` | `heuristics.py:211` | Un 37777 (3) ya no vale lo mismo que un 80 (1) |
-| Umbrales sobre la suma | `"confidence_levels"` → `CONFIDENCE_LEVELS`; `_confidence()` | `rules.json:9-13`, `heuristics.py:160-164` | Una pista fuerte sola = media; para alta hacen falta varias pistas |
-| Varias hipótesis ordenadas | `candidates.sort(...)`; `[:max_labels]` | `heuristics.py:218-219` | Hasta 3 etiquetas; en empate gana la regla que va antes en `RULES` |
-| Sin evidencias, sin etiqueta | `if ev:` | `heuristics.py:210` | Un dispositivo sin pistas queda "Sin identificar" (mejor que inventar) |
+| Puntuación = suma de pesos | `score = sum(w for _, w in ev)` | `heuristics.py:218` | Un 37777 (3) ya no vale lo mismo que un 80 (1) |
+| Umbrales sobre la suma | `"confidence_levels"` → `CONFIDENCE_LEVELS`; `_confidence()` | `rules.json:9-13`, `heuristics.py:161-165` | Una pista fuerte sola = media; para alta hacen falta varias pistas |
+| Varias hipótesis ordenadas | `candidates.sort(...)`; `[:max_labels]` | `heuristics.py:225-226` | Hasta 3 etiquetas; en empate gana la regla que va antes en `RULES` |
+| Sin evidencias, sin etiqueta | `if ev:` | `heuristics.py:217` | Un dispositivo sin pistas queda "Sin identificar" (mejor que inventar) |
 | Se ejecuta tras el sniffing | `heuristics.classify_all(devices)` | `net_device_scanner.py:123` | Rellena `dev.labels` para el informe (Hito 4) |
 
 **Antes y después** (casos comprobados el 2026-10-21 y el 2026-10-25):
@@ -291,9 +291,9 @@ Qwen (otro asistente de IA) propuso una lista de mejoras; el autor eligió estas
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Separar datos (conocimiento) de código (motor): reglas nuevas sin tocar Python | `rules.json` + `load_rules()` | `rules.json`, `heuristics.py:122-143` | Reglas, pesos y umbrales en un fichero; se cargan al importar (`use_rules()`, `heuristics.py:157`) |
+| Separar datos (conocimiento) de código (motor): reglas nuevas sin tocar Python | `rules.json` + `load_rules()` | `rules.json`, `heuristics.py:123-144` | Reglas, pesos y umbrales en un fichero; se cargan al importar (`use_rules()`, `heuristics.py:158`) |
 | JSON y no YAML | — | — | Sin dependencia nueva (PyYAML no compilaba en Python 3.15) y sin el riesgo de cargar YAML con etiquetas de objetos |
-| Validar la entrada: una errata no debe pasar en silencio | `unknown = set(d) - _RULE_FIELDS`; `re.compile(...)` | `heuristics.py:96-98`, `:115` | Campos desconocidos, puertos fuera de 1-65535 o regex mal escritas → `ValueError` con el nombre de la regla |
+| Validar la entrada: una errata no debe pasar en silencio | `unknown = set(d) - _RULE_FIELDS`; `re.compile(...)` | `heuristics.py:97-99`, `:116` | Campos desconocidos, puertos fuera de 1-65535 o regex mal escritas → `ValueError` con el nombre de la regla |
 | Reglas propias del analista | `--rules fichero.json` → `use_rules(path)` | `net_device_scanner.py:64`, `:116-117` | Cambia las reglas sin editar el paquete. El fichero es configuración de confianza: una regex mal hecha puede ser lenta (ReDoS) |
 
 ### print() → logging
@@ -312,12 +312,12 @@ exportados con `--anonymize` llevan seudónimos.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:174-193` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
-| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:174-193` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
-| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:142-151` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
-| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:142-151` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
-| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:167-171` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
-| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:191` | `C:\Users\…\lab.pcap` → `lab.pcap` |
+| **Seudonimizar** (RGPD art. 4.5): sustituir identificadores por seudónimos | `anonymize(devices, meta)` | `report.py:189-208` | MAC, IP, IPv6, hostname, nombre ONVIF, interfaz y ruta del `.pcap` |
+| **Minimización**: conservar solo lo necesario para analizar | (se mantienen) | `report.py:189-208` | Fabricante, puertos, protocolos, servicios, dominios, tipo y alertas siguen en claro |
+| Un hash (incluso con sal) no anonimiza: 2³² IPv4 se prueban en segundos | `hmac.new(key, ..., sha256)` | `report.py:157-166` | HMAC-SHA256 con clave aleatoria de 32 bytes por informe (`secrets`), no guardada: irreversible |
+| Coherencia dentro del informe | `pseudo(kind, value)` | `report.py:157-166` | El mismo dispositivo tiene el mismo seudónimo en JSON, CSV y alertas; distinto en otro informe |
+| Datos que escribe el usuario pueden delatar dónde está | `_anonymize_banner()` | `report.py:182-186` | `ONVIF:name=HIKVISION Entrada` → `ONVIF:name=name-…` |
+| La ruta del `.pcap` lleva el usuario del equipo | `os.path.basename` | `report.py:206` | `C:\Users\…\lab.pcap` → `lab.pcap` |
 | Solo afecta a lo exportado | `export()` | `net_device_scanner.py:129-141`; casilla en `gui.py:302` | La tabla en pantalla sigue mostrando los datos reales |
 
 Limitación: las consultas DNS y el SNI se conservan porque son evidencia técnica, pero en
@@ -343,13 +343,60 @@ un móvil pueden revelar hábitos de navegación.
 |---|---|---|---|
 | CI: cada push se prueba solo, en una máquina limpia | `.github/workflows/ci.yml` | raíz del repo | pytest + flake8 + bandit en Python 3.12 y 3.14 con `requirements.lock` |
 | Cobertura de líneas como umbral | `--cov=iot_scanner --cov-fail-under=85` | `ci.yml` | 92 % el 2026-10-26; la CI falla si baja del 85 % |
-| Cobertura de **reglas** (lo que pedía Qwen: ≥ 80 %) | `extra_rule_packets()`, `EXTRA_EXPECTED` | `tests/lab_packets.py:134-215` | Un dispositivo sintético por cada regla que el laboratorio no ejercitaba: 15 de 15 |
+| Cobertura de **reglas** (lo que pedía Qwen: ≥ 80 %) | `extra_rule_packets()`, `EXTRA_EXPECTED` | `tests/lab_packets.py:134-239` | Un dispositivo sintético por cada regla que el laboratorio no ejercitaba: 15 de 15 |
 
 ### Filtro en la tabla de la GUI
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:554-567` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+| Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:556-569` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
+
+## Mejoras propuestas por Qwen (2026-11-19): SSDP y modelo de amenazas
+
+El autor eligió 3 de la segunda lista de **Qwen**; las demás se descartaron (detalle en
+`AI_USAGE.md`).
+
+### Tipos UPnP y versiones en SSDP
+
+SSDP (Simple Service Discovery Protocol) es el descubrimiento de UPnP: mensajes HTTP sobre
+UDP al 239.255.255.250:1900. Hay tres tipos de mensaje:
+
+- `NOTIFY`: el dispositivo **se anuncia**; `NT` dice qué es.
+- Respuesta `HTTP/1.1 200 OK`: el dispositivo **responde** a una búsqueda; `ST` dice qué es.
+- `M-SEARCH`: alguien **busca**; su `ST` es lo que busca, no lo que es (como `Probe` en
+  WS-Discovery). Un móvil que busca un router no es un router.
+
+El tipo va en una URN: `urn:schemas-upnp-org:device:InternetGatewayDevice:1`. El banner
+`SERVER` sigue el formato de UPnP 1.0: `SO/versión UPnP/1.0 producto/versión`.
+
+| Teoría | Código | Dónde | Qué hace |
+|---|---|---|---|
+| Solo cuenta lo que el dispositivo dice de sí mismo | `announces = NOTIFY o HTTP/` | `sniffer.py:222` | `NT`/`ST` y versiones solo de anuncios y respuestas; el banner de un `M-SEARCH` se guarda, pero no da tipo ni versiones |
+| Tipo UPnP de la URN | `_UPNP_URN` | `sniffer.py:169`, `:231-234` | Saca `InternetGatewayDevice`, `MediaRenderer`… con longitudes acotadas (64) |
+| Separar SO, protocolo, librería y producto en el `SERVER` | `parse_server_banner()` | `sniffer.py:175-202` | `Linux/3.10` = núcleo (no es firmware); `UPnP/1.0` = protocolo; `miniupnpd/2.1` = librería; `Shelly/1.0` = **producto** → su versión sí es firmware |
+| Firmware frente a librería | `_add_versions()`, `LIBRARY_NAMES` | `sniffer.py:180`, `:205-210` | Producto → `firmware`; librería → `software` (`miniupnpd/2.1`) |
+| El cliente DHCP de BusyBox lleva su versión | `_DHCP_CLIENT` | `sniffer.py:184`, `:104-109` | `udhcp 1.24.1` → `software` = `udhcp/1.24.1` (es la versión de BusyBox, no la del firmware) |
+| Pista fuerte en las reglas | campo `upnp` de las reglas | `heuristics.py:60`, `:185-187`, `rules.json:73`, `:86` | Router: `InternetGatewayDevice`, `WANIPConnection`…; multimedia: `MediaRenderer`… IGD y WANIPConnection los anuncia el mismo router: cuentan **una vez** (+3) |
+| UPnP IGD: cualquier equipo de la LAN puede pedir al router que abra puertos hacia internet, sin autenticación | `SENSITIVE_UPNP` | `report.py:51-60`, `:95-97` | Alerta MEDIA por IGD, WANIPConnection o WANPPPConnection |
+| Las librerías tienen CVE propios, con su versión | `SOFTWARE_CPE`, `device_software()` | `vulns.py:74-81`, `:250-257`, `:391` | `miniupnpd` → `miniupnp_project:miniupnpd`, `udhcp` → `busybox:busybox`; el rango se compara con la versión de la librería |
+| Una librería no dice nada del hardware | `if not products` | `vulns.py:410` | Aunque haya CVE de librería, se hace la suposición por fabricante |
+
+**En el ejemplo regenerado (NVD real, 2026-11-19):** el router TP-Link sale como "Router /
+gateway" (alta) con 2 alertas MEDIA de UPnP y 4 CVE de miniupnpd 2.1 comprobados por versión;
+el sensor con `udhcp 1.24.1` recibe 21 CVE de BusyBox 1.24.1.
+
+**Limitación:** la versión de BusyBox no dice qué applets compiló el fabricante; un CVE de
+`tar` o `ash` puede no afectar a un equipo que no los tenga. "modelo+firmware" aquí significa
+"esta versión de la librería es vulnerable".
+
+### Modelo de amenazas
+
+`docs/THREAT_MODEL.md`: activos, adversarios, amenazas por **STRIDE** con la mitigación y el
+código que la implementa, lo que la herramienta no ve y los riesgos residuales. Al redactarlo
+salió uno no mitigado: no hay **límite de dispositivos**, así que una inundación de MAC falsas
+hace crecer la memoria (sí hay límite de 64 elementos por dispositivo).
+
+---
 
 ## Análisis de vulnerabilidades (`iot_scanner/vulns.py`, añadido el 2026-11-16)
 
@@ -373,28 +420,28 @@ sabemos del dispositivo.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Buscar el CVE por el texto del modelo no funciona: NVD empareja por CPE | `find_products()` | `vulns.py:188-211` | Busca el modelo en el diccionario CPE y se queda con los productos cuyo nombre aparece **tal cual** en el modelo (`_appears_in`, `:160-162`): `hl-l2350dw` sí casa con "Brother HL-L2350DW series"; `hl-l2350` y `dcp-1610w` no. Quita palabras que no están en CPE ("series", `MODEL_NOISE`, `:63`) |
+| Buscar el CVE por el texto del modelo no funciona: NVD empareja por CPE | `find_products()` | `vulns.py:199-222` | Busca el modelo en el diccionario CPE y se queda con los productos cuyo nombre aparece **tal cual** en el modelo (`_appears_in`, `:160-162`): `hl-l2350dw` sí casa con "Brother HL-L2350DW series"; `hl-l2350` y `dcp-1610w` no. Quita palabras que no están en CPE ("series", `MODEL_NOISE`, `:63`) |
 | Software reconocible aunque no anuncie modelo | `SERVICE_PRODUCTS` | `vulns.py:65-67`, `device_products()` `:191-198` | `_esphomelib._tcp` → `esphome:esphome`; su `version=` es la del software |
-| CVE de un producto en NVD | `product_cves()` | `vulns.py:285-300` | `virtualMatchString=cpe:2.3:*:fabricante:producto` (cualquier parte) y, si existe, también `..._firmware` |
-| Niveles de certeza: fabricante < modelo < modelo + firmware | `assess()` | `vulns.py:252-266` | **modelo+firmware** si la versión anunciada cae en el rango vulnerable; **modelo** si no hay versión o NVD no da rango; si el rango la excluye, el CVE **se descarta** |
-| Rangos de versión de NVD | `version_in_range()`, `_vkey()` | `vulns.py:228-249` | Versión exacta en el CPE, o `versionStart/EndIncluding/Excluding`; compara las versiones como números (`2024.6.1` → `(2024, 6, 1)`) |
-| Nivel 3, **fabricante**: una suposición, no una certeza | `cpe_vendor()`, `vendor_recent_cves()` | `vulns.py:318-341`, `lookup_device()` `:381-387` | Si solo sabemos el fabricante (OUI), o el modelo no está en el diccionario CPE: CVE de **hardware** del fabricante (`cpe:2.3:h:hikvision`) publicados en los **últimos 2 años**, como mucho **5** y los más graves primero. Solo `h:` porque `o:` mete el sistema operativo (Google: 614 CVE de Android/ChromeOS en 120 días). Nunca genera alertas, ni estando en KEV |
-| Del nombre OUI a la marca CPE | `cpe_vendor()`, `VENDOR_NOISE` | `vulns.py:82-91`, `:318-325` | "Hangzhou Hikvision Digital Technology Co.,Ltd." → `hikvision`: se quitan ciudades y palabras de empresa (inc, ltd, technology, smart…); MAC aleatoria o desconocido → no se busca |
-| Gravedad | `_cvss()` | `vulns.py:269-276` | CVSS v4.0, si no v3.1, v3.0 o v2 (la "Primary", que es la de NVD) |
-| KEV marca, no busca | `load_kev()` | `vulns.py:344-348` | Solo dice si un CVE encontrado por modelo está en KEV. Buscar en KEV por fabricante es ruido: "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un Chromecast. |
-| NVD sin clave admite 5 peticiones cada 30 s | `Client._throttle()` | `vulns.py:135-141` | 6 s entre consultas (0,6 s con `NVD_API_KEY`); KEV no cuenta |
-| No repetir consultas | `Client._cache_read/_cache_write` | `vulns.py:143-166` | Caché en disco de 24 h (`~/.cache/iot_scanner`, `--cve-cache`); si falla, se sigue sin caché |
-| Privacidad: qué sale a internet | `lookup_all()` | `vulns.py:395-423` | Solo el modelo (lo anuncia el propio dispositivo a toda la red), el fabricante y nombres CPE; nunca MAC, IP ni hostname. User-Agent genérico |
-| Lo que llega de internet tampoco es de fiar | `_http_get_json()`, `_summary()` | `vulns.py:95-101`, `:279-282` | Solo `https`, timeout de 30 s, como mucho 32 MB; la descripción se limpia de caracteres de control y se recorta a 160 |
-| Sin red no se rompe nada | `Client.get()` | `vulns.py:118-133` | Un error de red o un JSON roto cuenta como error y se avisa; el informe indica que puede estar incompleto |
+| CVE de un producto en NVD | `product_cves()` | `vulns.py:306-321` | `virtualMatchString=cpe:2.3:*:fabricante:producto` (cualquier parte) y, si existe, también `..._firmware` |
+| Niveles de certeza: fabricante < modelo < modelo + firmware | `assess()` | `vulns.py:273-287` | **modelo+firmware** si la versión anunciada cae en el rango vulnerable; **modelo** si no hay versión o NVD no da rango; si el rango la excluye, el CVE **se descarta** |
+| Rangos de versión de NVD | `version_in_range()`, `_vkey()` | `vulns.py:239-270` | Versión exacta en el CPE, o `versionStart/EndIncluding/Excluding`; compara las versiones como números (`2024.6.1` → `(2024, 6, 1)`) |
+| Nivel 3, **fabricante**: una suposición, no una certeza | `cpe_vendor()`, `vendor_recent_cves()` | `vulns.py:339-363`, `lookup_device()` `:381-387` | Si solo sabemos el fabricante (OUI), o el modelo no está en el diccionario CPE: CVE de **hardware** del fabricante (`cpe:2.3:h:hikvision`) publicados en los **últimos 2 años**, como mucho **5** y los más graves primero. Solo `h:` porque `o:` mete el sistema operativo (Google: 614 CVE de Android/ChromeOS en 120 días). Nunca genera alertas, ni estando en KEV |
+| Del nombre OUI a la marca CPE | `cpe_vendor()`, `VENDOR_NOISE` | `vulns.py:93-102`, `:339-347` | "Hangzhou Hikvision Digital Technology Co.,Ltd." → `hikvision`: se quitan ciudades y palabras de empresa (inc, ltd, technology, smart…); MAC aleatoria o desconocido → no se busca |
+| Gravedad | `_cvss()` | `vulns.py:290-297` | CVSS v4.0, si no v3.1, v3.0 o v2 (la "Primary", que es la de NVD) |
+| KEV marca, no busca | `load_kev()` | `vulns.py:366-370` | Solo dice si un CVE encontrado por modelo está en KEV. Buscar en KEV por fabricante es ruido: "Google" tiene decenas de entradas de Chrome/Chromium que nada tienen que ver con un Chromecast. |
+| NVD sin clave admite 5 peticiones cada 30 s | `Client._throttle()` | `vulns.py:146-152` | 6 s entre consultas (0,6 s con `NVD_API_KEY`); KEV no cuenta |
+| No repetir consultas | `Client._cache_read/_cache_write` | `vulns.py:154-177` | Caché en disco de 24 h (`~/.cache/iot_scanner`, `--cve-cache`); si falla, se sigue sin caché |
+| Privacidad: qué sale a internet | `lookup_all()` | `vulns.py:423-453` | Solo el modelo (lo anuncia el propio dispositivo a toda la red), el fabricante y nombres CPE; nunca MAC, IP ni hostname. User-Agent genérico |
+| Lo que llega de internet tampoco es de fiar | `_http_get_json()`, `_summary()` | `vulns.py:106-112`, `:300-303` | Solo `https`, timeout de 30 s, como mucho 32 MB; la descripción se limpia de caracteres de control y se recorta a 160 |
+| Sin red no se rompe nada | `Client.get()` | `vulns.py:129-144` | Un error de red o un JSON roto cuenta como error y se avisa; el informe indica que puede estar incompleto |
 
 ### En el informe
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:94-105`, `:241-259` | Sección "Vulnerabilidades conocidas", con certeza (`certainty_label()`: "fabricante (suposición)"), KEV y cuántos se descartaron por versión |
-| Solo un CVE tan seguro y urgente como un Telnet abierto se convierte en alerta | bucle `for c in dev.cves` | `report.py:85-90` | Alerta ALTA si está en **KEV** y la certeza es **modelo+firmware**; sin puerto (`-`) |
-| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:29`, `report.py:288-289` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
+| CVE separado de las alertas | `build_cve_list()`, `print_cves()` | `report.py:109-120`, `:256-276` | Sección "Vulnerabilidades conocidas", con certeza (`certainty_label()`: "fabricante (suposición)"), KEV y cuántos se descartaron por versión |
+| Solo un CVE tan seguro y urgente como un Telnet abierto se convierte en alerta | bucle `for c in dev.cves` | `report.py:100-105` | Alerta ALTA si está en **KEV** y la certeza es **modelo+firmware**; sin puerto (`-`) |
+| JSON/CSV | `Device.cves`, `_cve_cell()` | `device.py:31`, `report.py:306-307` | `cves` por dispositivo; en el CSV `CVE-… (CVSS, certeza, KEV)` |
 | GUI | pestaña CVE, casilla | `gui.py:209-212`, `:256-263`, `:467-474` | Casilla "Buscar CVE conocidos"; pestaña aparte con las filas KEV en rojo; columna CVE en la tabla |
 | CLI | `--cve`, `--cve-cache` | `net_device_scanner.py:65-68`, `:124-125` | Se busca después de clasificar |
 
