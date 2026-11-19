@@ -68,7 +68,6 @@
     {
       "label": "Dispositivo UPnP / multimedia",
       "served_ports": [1900, 2869, 49152],
-      "client_ports": [1900],
       "mdns": ["_dlna._tcp"],
       "upnp": ["MediaRenderer", "MediaServer", "AVTransport", "RenderingControl", "ContentDirectory"],
       "text": "upnp|dlna|media ?server"

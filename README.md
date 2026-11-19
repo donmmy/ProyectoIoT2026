@@ -19,7 +19,7 @@ Herramientas de Ciberseguridad*.
 | 4 | Informe: tabla, JSON/CSV (anonimizable) y alertas | ✅ Hecho |
 | + | Vulnerabilidades conocidas (`--cve`): NVD por CPE y CISA KEV, con nivel de certeza | ✅ Hecho |
 | 5 | Triaje asistido por IA sobre datos anonimizados | ⏳ Opcional, pendiente |
-| 6 | Pruebas en laboratorio real frente a Wireshark y memoria | ⏳ Pendiente |
+| 6 | Pruebas en laboratorio real frente a Wireshark y memoria | 🔄 En curso (primera prueba real: 2026-11-19) |
 
 El detalle de decisiones, pendientes y sesiones está en [`docs/AGENT.md`](docs/AGENT.md).
 

@@ -33,9 +33,9 @@ Documento de planteamiento: `Desarrollo de Herramientas de Ciberseguridad.pdf`
 | 3 | Tabla de reglas → etiquetas candidatas con confianza (suma de pesos de las evidencias) | ✅ Hecho |
 | 4 | Tabla por consola, JSON/CSV, resumen (recuentos, protocolos top, alertas) | ✅ Hecho |
 | 5 | Triaje asistido por IA (datos anonimizados y saneados) | ⏳ Pendiente (opcional) |
-| 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | ⏳ Pendiente |
+| 6 | Pruebas en laboratorio real vs. Wireshark, casos de prueba, memoria, `AI_USAGE.md` | 🔄 En curso: primera prueba en red compartida (2026-11-19) |
 
-Tests: **169 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
+Tests: **188 pasan** (`pytest`), con tráfico sintético; no requieren root ni red. Cobertura del
 paquete `iot_scanner`: 94 %. CI en GitHub Actions (`.github/workflows/ci.yml`) en cada push.
 
 ## Estructura
@@ -257,6 +257,9 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
 - [ ] Futuro: `Probe` WS-Discovery activo opcional (en pasivo solo se ve el `Hello` de los
   dispositivos que se conectan durante la escucha) y buscar CVE por el modelo ONVIF.
 - [x] `--save-pcap` (2026-11-19): guardar la escucha en vivo para Wireshark y para repetir el análisis.
+- [x] Hito 6, primera prueba (2026-11-19, red compartida 10.1.193.0/24): coinciden 156/156
+  dispositivos y 23/23 TXT; corregidos la IP pública del router (manda el ARP, privadas antes que
+  públicas) y los falsos positivos UPnP por `M-SEARCH` (fuera `client_ports: [1900]`).
 - [ ] Hito 6: prueba real con los 3 dispositivos IoT del laboratorio y comparación con Wireshark.
   Método: capturar una vez (`--save-pcap` o Wireshark) y analizar ese mismo fichero con `--pcap`;
   preferible con el portátil como punto de acceso para ver el unicast.
@@ -322,3 +325,5 @@ Opciones: `-i`, `-n`, `-t`, `--arp-timeout`, `--arp-interval`, `--sniff-only`, `
   eTLD+1 al anonimizar (Public Suffix List en el repo). Tests 127 → 159. Implementado por Claude.
 - **2026-11-19** — `--save-pcap` y casilla en la GUI: la escucha en vivo se guarda paquete a
   paquete (también lo del propio equipo); preparación del Hito 6. Tests 159 → 169. Asistido por Claude.
+- **2026-11-19** — Hito 6, primera prueba real frente a Wireshark en una red compartida: dos
+  fallos corregidos (IP del router, regla UPnP). Tests 169 → 188. Asistido por Claude.

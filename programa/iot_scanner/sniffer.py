@@ -136,6 +136,14 @@ def _parse_dhcp(pkt, dev):
 PORT_DHCP6_CLIENT = 546
 
 
+def is_global_ip(ip):
+    """IP pública (enrutable en internet); privadas, link-local y CGNAT no lo son."""
+    try:
+        return ipaddress.ip_address(ip).is_global
+    except ValueError:
+        return False
+
+
 def _parse_dhcp6(pkt, dev):
     # haslayer() no reconoce subclases: los mensajes (Solicit, Request...) heredan de DHCP6
     if not any(issubclass(layer, DHCP6) for layer in pkt.layers()):
@@ -431,6 +439,7 @@ class PassiveSniffer:
         self.devices = devices if devices is not None else {}
         self.ignore = {m.lower() for m in ignore_macs if m}
         self.total_packets = 0
+        self._arp_ip = set()   # MAC cuya IP salió de un ARP (la fuente fiable)
 
     def _get_device(self, mac, ip=None):
         dev = self.devices.get(mac)
@@ -439,6 +448,23 @@ class PassiveSniffer:
             self.devices[mac] = dev
             log.debug("Dispositivo nuevo por escucha pasiva: %s (%s)", mac, dev.vendor)
         return dev
+
+    def _ip_from_arp(self, dev):
+        # Del ARP pasivo o del ARP scan (los dispositivos del scan llegan con source "arp")
+        return dev.mac in self._arp_ip or (dev.source == "arp" and bool(dev.ip))
+
+    def _better_ip(self, dev, ip):
+        """¿Usar `ip` (origen de un paquete IP) como IP del dispositivo?
+
+        Un router reenvía el tráfico de internet con SU MAC: con la MAC de origen llegan
+        IP públicas de cualquier servidor (en la prueba real, 160.79.104.10 para un router
+        que por ARP decía ser 10.1.192.1). Por eso: si la IP salió de un ARP, se queda; si no,
+        una privada (o link-local) gana a una pública ya vista."""
+        if is_unspecified(ip) or self._ip_from_arp(dev):
+            return False
+        if not dev.ip or is_unspecified(dev.ip):
+            return True
+        return is_global_ip(dev.ip) and not is_global_ip(ip)
 
     def handle_packet(self, pkt):
         self.total_packets += 1
@@ -451,17 +477,19 @@ class PassiveSniffer:
         dev = self._get_device(src_mac)
         dev.packet_count += 1
 
-        # ARP: útil en redes con aislamiento, los equipos se anuncian igual
+        # ARP: útil en redes con aislamiento, los equipos se anuncian igual. Es la fuente
+        # fiable de la IP de una MAC: manda sobre lo visto en paquetes IP
         if pkt.haslayer(ARP):
             dev.protocols.add("ARP")
             psrc = pkt[ARP].psrc
-            if psrc and not is_unspecified(psrc) and not dev.ip:
+            if psrc and not is_unspecified(psrc) and not self._ip_from_arp(dev):
                 dev.ip = psrc
+                self._arp_ip.add(src_mac)
 
         ip_dst = None
         if pkt.haslayer(IP):
             ip_src, ip_dst = pkt[IP].src, pkt[IP].dst
-            if not is_unspecified(ip_src) and (not dev.ip or is_unspecified(dev.ip)):
+            if self._better_ip(dev, ip_src):
                 dev.ip = ip_src
         elif pkt.haslayer(IPv6):
             dev.protocols.add("IPv6")

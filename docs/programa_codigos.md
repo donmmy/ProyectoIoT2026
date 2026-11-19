@@ -46,23 +46,23 @@ hostname, servicios y banners.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:528-563` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
-| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:594` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
-| La MAC de origen identifica al emisor | `pkt[Ether].src` | `sniffer.py:447` | Clave para agrupar |
+| Captura pasiva (no se envía nada) | `AsyncSniffer(iface, prn=..., store=False)` | `sniffer.py:556-591` | Llama a `handle_packet` por cada paquete en un hilo aparte; `store=False` no guarda los paquetes en memoria (ver "Escucha parable") |
+| Análisis offline reproducible | `rdpcap(path)` | `sniffer.py:622` | Mismo procesado sobre un `.pcap` (comparable con Wireshark) |
+| La MAC de origen identifica al emisor | `pkt[Ether].src` | `sniffer.py:473` | Clave para agrupar |
 | `0.0.0.0` / `::` = "sin dirección" (DHCP sin IP, ruta sin gateway) | `is_unspecified(ip)` con `ipaddress` | `discovery.py:26-31` | Sustituye las comparaciones con el literal `"0.0.0.0"` (avisos B104 de bandit) |
-| Bit I/G (0x01): multicast/broadcast no son emisores reales | `_is_unicast(mac)` | `sniffer.py:79-80`, `:448` | Descarta orígenes multicast; también se ignora la MAC propia |
-| Un dispositivo nuevo visto solo en pasivo | `_get_device(...)`, `source="pasivo"` | `sniffer.py:435-441` | Lo crea con fabricante por OUI (reutiliza el Hito 1) |
-| ARP gratuito / respuestas ARP de otros | `pkt[ARP].psrc` | `sniffer.py:455-459` | Saca la IP aunque haya aislamiento de clientes |
-| IP de origen (capa 3) | `pkt[IP].src` | `sniffer.py:461-465` | Rellena la IP si aún no se tiene (ignora `0.0.0.0` de DHCP) |
+| Bit I/G (0x01): multicast/broadcast no son emisores reales | `_is_unicast(mac)` | `sniffer.py:79-80`, `:474` | Descarta orígenes multicast; también se ignora la MAC propia |
+| Un dispositivo nuevo visto solo en pasivo | `_get_device(...)`, `source="pasivo"` | `sniffer.py:444-450` | Lo crea con fabricante por OUI (reutiliza el Hito 1) |
+| ARP gratuito / respuestas ARP de otros | `pkt[ARP].psrc` | `sniffer.py:482-486` | Saca la IP aunque haya aislamiento de clientes |
+| IP de origen (capa 3) | `pkt[IP].src` | `sniffer.py:489-493` | Rellena la IP si aún no se tiene (ignora `0.0.0.0` de DHCP) |
 
 ### Puertos: cliente vs. servidor (capa 4)
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Handshake TCP: SYN → SYN+ACK → ACK; quien manda SYN+ACK es el servidor | `pkt[TCP].flags & 0x12 == 0x12` | `sniffer.py:479-480` | SYN (0x02) + ACK (0x10) → el puerto origen es un servicio que ofrece (`ports_src`) |
-| Puerto destino = servicio al que se conecta (cliente) | `dev.add("ports_dst", dport)` | `sniffer.py:495-496` | Ej.: 1883 = se conecta a un broker MQTT |
-| Puertos efímeros (IANA ≥ 49152) son del cliente, ruido | `dport < EPHEMERAL_START` | `sniffer.py:39`, `:495` | No guarda puertos efímeros |
-| UDP no tiene handshake: puerto origen bajo ≈ servicio propio | `sport < 1024 and sport not in UDP_CLIENT_LOW_PORTS` | `sniffer.py:44`, `:498-500` | DHCP (67/68) y NTP (123) se excluyen porque el cliente también los usa como origen |
+| Handshake TCP: SYN → SYN+ACK → ACK; quien manda SYN+ACK es el servidor | `pkt[TCP].flags & 0x12 == 0x12` | `sniffer.py:507-508` | SYN (0x02) + ACK (0x10) → el puerto origen es un servicio que ofrece (`ports_src`) |
+| Puerto destino = servicio al que se conecta (cliente) | `dev.add("ports_dst", dport)` | `sniffer.py:523-524` | Ej.: 1883 = se conecta a un broker MQTT |
+| Puertos efímeros (IANA ≥ 49152) son del cliente, ruido | `dport < EPHEMERAL_START` | `sniffer.py:39`, `:523` | No guarda puertos efímeros |
+| UDP no tiene handshake: puerto origen bajo ≈ servicio propio | `sport < 1024 and sport not in UDP_CLIENT_LOW_PORTS` | `sniffer.py:44`, `:526-528` | DHCP (67/68) y NTP (123) se excluyen porque el cliente también los usa como origen |
 | Servicios UDP altos que delatan a un servidor | `UDP_SERVER_PORTS = {1900, 5683, 5684, 5540}` | `sniffer.py:41` | SSDP/UPnP, CoAP (5683) / CoAP sobre DTLS (5684) y Matter (5540) |
 
 ### Capa 7: lo que el dispositivo cuenta de sí mismo
@@ -71,12 +71,12 @@ hostname, servicios y banners.
 |---|---|---|---|
 | DHCP opción 12 = hostname que pide el cliente | `opt[0] == "hostname"` | `sniffer.py:123-124` | Fuente preferida de hostname |
 | DHCP opción 60 = vendor class (cliente DHCP / SO) | `opt[0] == "vendor_class_id"` | `sniffer.py:125-130` | Banner `DHCP:...` (ej. `udhcp`, `android-dhcp`, `MSFT 5.0`) |
-| mDNS = DNS multicast en `224.0.0.251:5353`, nombres `.local` | `PORT_MDNS in (sport, dport)` | `sniffer.py:33`, `:509-510` | Separa mDNS del DNS normal por el puerto |
-| DNS-SD: servicios `_servicio._tcp.local` | `re.search(r"(_[\w\-]+\._(?:tcp\|udp))\.local$", name)` | `sniffer.py:197-199` | Ej.: `_googlecast._tcp` = Chromecast, `_hap._tcp` = HomeKit |
-| Registro A (1) / AAAA (28) en respuesta mDNS = "mi nombre es X.local" | `dns.qr == 1 and rr.type in (1, 28)` | `sniffer.py:201-202` | Hostname por mDNS (solo si DHCP no dio uno) |
+| mDNS = DNS multicast en `224.0.0.251:5353`, nombres `.local` | `PORT_MDNS in (sport, dport)` | `sniffer.py:33`, `:537-538` | Separa mDNS del DNS normal por el puerto |
+| DNS-SD: servicios `_servicio._tcp.local` | `re.search(r"(_[\w\-]+\._(?:tcp\|udp))\.local$", name)` | `sniffer.py:205-207` | Ej.: `_googlecast._tcp` = Chromecast, `_hap._tcp` = HomeKit |
+| Registro A (1) / AAAA (28) en respuesta mDNS = "mi nombre es X.local" | `dns.qr == 1 and rr.type in (1, 28)` | `sniffer.py:209-210` | Hostname por mDNS (solo si DHCP no dio uno) |
 | Secciones DNS (qd, an, ar) son listas en Scapy ≥ 2.5 | `_dns_records(section)` | `sniffer.py:87-97` | Recorre los registros en ambos formatos (lista y encadenado) |
-| DNS: `qr = 0` es consulta | `if dns.qr == 0` | `sniffer.py:235-239` | Dominios que resuelve (a qué nube habla: `hik-connect.com`, `tuyaeu.com`...) |
-| SSDP/UPnP: anuncios HTTP sobre UDP 1900 | `key in ("SERVER", "USER-AGENT")` | `sniffer.py:300-304` | Banner con SO y modelo (ej. `Linux/3.10 UPnP/1.0 IPCamera`) |
+| DNS: `qr = 0` es consulta | `if dns.qr == 0` | `sniffer.py:243-247` | Dominios que resuelve (a qué nube habla: `hik-connect.com`, `tuyaeu.com`...) |
+| SSDP/UPnP: anuncios HTTP sobre UDP 1900 | `key in ("SERVER", "USER-AGENT")` | `sniffer.py:308-312` | Banner con SO y modelo (ej. `Linux/3.10 UPnP/1.0 IPCamera`) |
 
 ### Seguridad: el texto de la red es entrada no confiable
 
@@ -109,26 +109,26 @@ dispositivo no use IPv4. Añadidas el 2026-10-21 (código asistido por IA).
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| NTP = UDP 123; casi todo IoT sincroniza la hora y el servidor elegido delata al fabricante | `PORT_NTP in (sport, dport) and pkt.haslayer(NTP)` | `sniffer.py:502-503` | Scapy disecciona el NTP; se marca el protocolo |
-| Campo `mode` del NTP: 3 = cliente, 4 = respuesta de servidor, 5 = broadcast | `_parse_ntp(pkt, dev, ip_dst)` | `sniffer.py:311-318` | Cliente → guarda la IP del servidor en `ntp_servers`; servidor → `ports_src` 123 |
-| ntpd usa el 123 también como puerto origen del cliente | `UDP_CLIENT_LOW_PORTS = {67, 68, 123}` | `sniffer.py:44`, `:499` | Evita marcar como "servidor NTP" a un cliente (falso positivo que tenía el Hito 2) |
+| NTP = UDP 123; casi todo IoT sincroniza la hora y el servidor elegido delata al fabricante | `PORT_NTP in (sport, dport) and pkt.haslayer(NTP)` | `sniffer.py:530-531` | Scapy disecciona el NTP; se marca el protocolo |
+| Campo `mode` del NTP: 3 = cliente, 4 = respuesta de servidor, 5 = broadcast | `_parse_ntp(pkt, dev, ip_dst)` | `sniffer.py:319-326` | Cliente → guarda la IP del servidor en `ntp_servers`; servidor → `ports_src` 123 |
+| ntpd usa el 123 también como puerto origen del cliente | `UDP_CLIENT_LOW_PORTS = {67, 68, 123}` | `sniffer.py:44`, `:527` | Evita marcar como "servidor NTP" a un cliente (falso positivo que tenía el Hito 2) |
 
 ### TLS: el nombre del servidor viaja en claro (SNI)
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| HTTPS va cifrado, pero el primer mensaje (ClientHello) no: lleva el SNI para que el servidor sepa qué certificado dar | `tls_sni(data)` → `parse_client_hello(data)` | `sniffer.py:360-420` | Parser manual del ClientHello sin dependencias |
-| Registro TLS `0x16` (handshake), versión `0x03xx`, mensaje `0x01` (ClientHello) | `data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01` | `sniffer.py:374` | Descarta todo lo que no es un ClientHello |
-| Estructura: versión, random (32), session id, cipher suites, compresión, extensiones | `pos += ...` | `sniffer.py:376-382` | Salta los campos de longitud variable leyendo su longitud |
-| Extensión `0x0000` = server_name; tipo 0 = host_name | `ext_type == 0x0000` | `sniffer.py:393-397` | Devuelve el nombre; si está cortado, `None` |
-| Entrada no confiable | `sanitize_text(hello["sni"], 128)` | `sniffer.py:485-487` | El SNI se sanea igual que hostname y banners |
+| HTTPS va cifrado, pero el primer mensaje (ClientHello) no: lleva el SNI para que el servidor sepa qué certificado dar | `tls_sni(data)` → `parse_client_hello(data)` | `sniffer.py:368-428` | Parser manual del ClientHello sin dependencias |
+| Registro TLS `0x16` (handshake), versión `0x03xx`, mensaje `0x01` (ClientHello) | `data[0] != 0x16 or data[1] != 0x03 or data[5] != 0x01` | `sniffer.py:382` | Descarta todo lo que no es un ClientHello |
+| Estructura: versión, random (32), session id, cipher suites, compresión, extensiones | `pos += ...` | `sniffer.py:384-390` | Salta los campos de longitud variable leyendo su longitud |
+| Extensión `0x0000` = server_name; tipo 0 = host_name | `ext_type == 0x0000` | `sniffer.py:401-405` | Devuelve el nombre; si está cortado, `None` |
+| Entrada no confiable | `sanitize_text(hello["sni"], 128)` | `sniffer.py:513-515` | El SNI se sanea igual que hostname y banners |
 | Un dominio es un dominio, venga de DNS o de TLS | `seen = [("consulta", d) ...] + [("TLS a", d) ...]` | `heuristics.py:209-216` | El SNI alimenta la misma regex `domains` de las reglas; cuenta como una sola evidencia |
 
 ### Matter / Thread: IPv6 y mDNS
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Matter va sobre IPv6 (link-local `fe80::`) y se anuncia por mDNS en `ff02::fb` | `elif pkt.haslayer(IPv6)` | `sniffer.py:466-470` | Guarda las direcciones IPv6 en `ipv6` (antes se perdían) |
+| Matter va sobre IPv6 (link-local `fe80::`) y se anuncia por mDNS en `ff02::fb` | `elif pkt.haslayer(IPv6)` | `sniffer.py:494-498` | Guarda las direcciones IPv6 en `ipv6` (antes se perdían) |
 | Matter operativo = UDP 5540 | `PORT_MATTER = 5540` en `UDP_SERVER_PORTS` | `sniffer.py:37`, `:41` | Puerto servido |
 | DNS-SD de Matter: `_matter._tcp` (ya emparejado), `_matterc._udp` (por emparejar), `_matterd._udp` (controlador) | regla `Dispositivo Matter` | `rules.json:57-62` | La regex de servicios mDNS del Hito 2 ya los captura sin cambios |
 | Thread no es IP en tu WiFi: solo se ve su border router (`_meshcop._udp`, `_trel._udp`) | regla `Border router Thread / controlador Matter` | `rules.json:63-67` | Identifica el puente, no los nodos Thread |
@@ -137,10 +137,10 @@ dispositivo no use IPv4. Añadidas el 2026-10-21 (código asistido por IA).
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| WS-Discovery = SOAP/XML por UDP 3702 a `239.255.255.250` / `ff02::c` (multicast: llega sin port mirroring) | `PORT_WSD in (sport, dport)` | `sniffer.py:38`, `:515-516` | Activa el extractor |
-| Quién envía cada mensaje: `Hello`/`Bye`/`ProbeMatches` el dispositivo descubierto; `Probe`/`Resolve` quien busca (NVR, app, Windows) | `WSD_TARGET_ACTIONS`; `action not in ...` | `sniffer.py:48`, `:333-335` | Solo el dispositivo descubierto gana tipos y `ports_src` 3702; un `Probe` no lo convierte en cámara |
-| `Types`: qué es (`dn:NetworkVideoTransmitter` = cámara ONVIF, `PrintDeviceType`, `pub:Computer`) | `_WSD_TYPES`; `dev.add("wsd_types", ...)` | `sniffer.py:53`, `:336-338` | Se guarda el nombre sin prefijo XML |
-| `Scopes` ONVIF: `onvif://www.onvif.org/name/...`, `/hardware/...` (modelo) | `ONVIF_SCOPE_KEYS`; `unquote` | `sniffer.py:55`, `:339-344` | Banners `ONVIF:hardware=DS-2CD2043G2-I`, `ONVIF:name=...` (sirven a la regex de texto y, en el futuro, a buscar CVE por modelo) |
+| WS-Discovery = SOAP/XML por UDP 3702 a `239.255.255.250` / `ff02::c` (multicast: llega sin port mirroring) | `PORT_WSD in (sport, dport)` | `sniffer.py:38`, `:543-544` | Activa el extractor |
+| Quién envía cada mensaje: `Hello`/`Bye`/`ProbeMatches` el dispositivo descubierto; `Probe`/`Resolve` quien busca (NVR, app, Windows) | `WSD_TARGET_ACTIONS`; `action not in ...` | `sniffer.py:48`, `:341-343` | Solo el dispositivo descubierto gana tipos y `ports_src` 3702; un `Probe` no lo convierte en cámara |
+| `Types`: qué es (`dn:NetworkVideoTransmitter` = cámara ONVIF, `PrintDeviceType`, `pub:Computer`) | `_WSD_TYPES`; `dev.add("wsd_types", ...)` | `sniffer.py:53`, `:344-346` | Se guarda el nombre sin prefijo XML |
+| `Scopes` ONVIF: `onvif://www.onvif.org/name/...`, `/hardware/...` (modelo) | `ONVIF_SCOPE_KEYS`; `unquote` | `sniffer.py:55`, `:347-352` | Banners `ONVIF:hardware=DS-2CD2043G2-I`, `ONVIF:name=...` (sirven a la regex de texto y, en el futuro, a buscar CVE por modelo) |
 | XML no confiable: un parser XML se expone a entidades externas (XXE) o expansión de entidades | regex acotadas `{0,256}`, `[^<]`; `WSD_MAX_BYTES = 8192` | `sniffer.py:49-54` | Sin parser, sin backtracking catastrófico, tamaño limitado y texto saneado |
 | El tipo lo declara el propio dispositivo y es muy específico | `rule.wsd & dev.wsd_types` → `WEIGHT_STRONG` | `heuristics.py:182-183` | +3 para cámara, impresora o Windows |
 | ONVIF activo revela el modelo | `SENSITIVE_SERVED[3702]` | `report.py:39` | Alerta BAJA: revisar la autenticación ONVIF |
@@ -166,12 +166,12 @@ pasiva más rentable para subir de "fabricante" a "modelo" o "modelo + versión"
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| DNS-SD (RFC 6763): cada servicio mDNS puede llevar un registro TXT (tipo 16) con pares `clave=valor` | `rr.type == TXT_TYPE` | `sniffer.py:61`, `:204-205` | Solo en respuestas (`qr = 1`), que son lo que el dispositivo dice de sí mismo |
-| En Scapy ≥ 2.5 el `rdata` de un TXT es una lista de bytes | `_txt_pairs(rdata)` | `sniffer.py:208-218` | Decodifica, separa por el primer `=`, sanea clave (32) y valor (96) y lee como mucho 32 pares |
-| Las claves no distinguen mayúsculas (RFC 6763, 6.4); una clave sin `=` es un booleano | `key.lower()`; `value = None` | `sniffer.py:217` | `MODEL=` cuenta como `model=`; `solo_clave` se guarda tal cual |
+| DNS-SD (RFC 6763): cada servicio mDNS puede llevar un registro TXT (tipo 16) con pares `clave=valor` | `rr.type == TXT_TYPE` | `sniffer.py:61`, `:212-213` | Solo en respuestas (`qr = 1`), que son lo que el dispositivo dice de sí mismo |
+| En Scapy ≥ 2.5 el `rdata` de un TXT es una lista de bytes | `_txt_pairs(rdata)` | `sniffer.py:216-226` | Decodifica, separa por el primer `=`, sanea clave (32) y valor (96) y lee como mucho 32 pares |
+| Las claves no distinguen mayúsculas (RFC 6763, 6.4); una clave sin `=` es un booleano | `key.lower()`; `value = None` | `sniffer.py:225` | `MODEL=` cuenta como `model=`; `solo_clave` se guarda tal cual |
 | Cada fabricante usa sus claves para modelo y versión | `TXT_MODEL_KEYS`, `TXT_FIRMWARE_KEYS` | `sniffer.py:62-63` | Modelo: `md` (Google), `model`, `ty` y `product` (impresoras), `app` (Shelly). Firmware: `ver` (Shelly), `version` (ESPHome), `fw_id`, `osvers`… |
 | No todo lo que parece versión es firmware | (excluidas a propósito) | `sniffer.py:57-60` | `txtvers` = versión del **formato** del TXT; `ve` en Chromecast = versión del **protocolo** |
-| Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:221-229`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
+| Trazabilidad: guardar todo, interpretar solo lo conocido | `mdns_txt`, `models`, `firmware` | `sniffer.py:229-237`, `device.py:26-28` | Todos los pares en `mdns_txt`; modelo y firmware en campos propios para la futura búsqueda de CVE |
 | El modelo es texto que el dispositivo dice de sí mismo | `own = hostname + models + banners` | `heuristics.py:200` | Pesa +2 en las reglas (frente a +1 del fabricante por OUI) |
 | Privacidad: los TXT llevan identificadores (`id`, `deviceid`, `mac`) y nombres del usuario (`fn=Salón de Oscar`, `note=Despacho`) | `SAFE_TXT_KEYS` (lista blanca), `_keep_txt()` | `report.py:235-242`, `:276` | Con `--anonymize` solo quedan las claves técnicas (modelo, versiones, plataforma…) |
 
@@ -184,10 +184,10 @@ anuncia servicios por mDNS.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:553-555` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
-| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:568-578` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
-| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:519-525`, `:580-583` | Reintenta hasta 5 s hasta que la captura para de verdad |
-| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:584-585` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
+| Captura en un hilo aparte que se puede parar | `AsyncSniffer(...)`, `capture.start()` | `sniffer.py:581-583` | Sustituye a `sniff(timeout=...)`, que bloqueaba hasta agotar el plazo |
+| En Scapy 2.8 `AsyncSniffer` no admite `timeout` | `deadline = time.monotonic() + seconds` | `sniffer.py:596-606` | El plazo lo controla el bucle, con esperas cortas de 0,2 s que atienden `stop_event` y Ctrl+C (también en Windows) |
+| Carrera: un `stop()` antes de que el hilo empiece a capturar se ignora | `_stop_capture()` + reintentos | `sniffer.py:547-553`, `:608-611` | Reintenta hasta 5 s hasta que la captura para de verdad |
+| Los errores del hilo no deben perderse | `raise capture.exception` | `sniffer.py:612-613` | Sin permisos o sin Npcap, el error llega a la CLI o a la GUI |
 | Se analiza lo capturado hasta el corte | `listened = round(time.monotonic() - t0)` | `net_device_scanner.py` (`run_live`) | El informe guarda los segundos escuchados de verdad |
 | Botón Detener solo durante la escucha | `self.stop_btn`, `self.stop_event.set()` | `gui.py` (`_start`, `_stop`) | Activo en modos con escucha en vivo; se desactiva al terminar |
 
@@ -198,11 +198,11 @@ Para el Hito 6: una sola captura que luego se abre en Wireshark y se vuelve a an
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Guardar como Wireshark: todo lo que llega, sin filtrar | `PcapWriter(..., sync=True)` + `handle(pkt)` | `sniffer.py:544-551` | Cada paquete se escribe **antes** de analizarlo, también los del propio equipo (el análisis los descarta, la captura no) |
-| Detener o Ctrl+C no deben perder la captura | escritura paquete a paquete y `writer.close()` en `finally` | `sniffer.py:554-559` | El fichero queda completo y cerrado aunque se corte o falle la captura (sin permisos) |
-| La espera de la captura, aparte | `_wait_capture()` | `sniffer.py:566-586` | El mismo bucle de antes (plazo, `stop_event`, Ctrl+C, reintentos), movido a una función |
+| Guardar como Wireshark: todo lo que llega, sin filtrar | `PcapWriter(..., sync=True)` + `handle(pkt)` | `sniffer.py:572-579` | Cada paquete se escribe **antes** de analizarlo, también los del propio equipo (el análisis los descarta, la captura no) |
+| Detener o Ctrl+C no deben perder la captura | escritura paquete a paquete y `writer.close()` en `finally` | `sniffer.py:582-587` | El fichero queda completo y cerrado aunque se corte o falle la captura (sin permisos) |
+| La espera de la captura, aparte | `_wait_capture()` | `sniffer.py:594-614` | El mismo bucle de antes (plazo, `stop_event`, Ctrl+C, reintentos), movido a una función |
 | Solo tiene sentido con escucha en vivo | `p.error(...)` | `net_device_scanner.py:79` | No se combina con `--pcap` ni con `--no-sniff`; con `-t 0` avisa de que no se guarda nada |
-| La captura es un dato sensible (todo el tráfico en claro) | aviso en el registro, `.gitignore` | `sniffer.py:545-546` | Excluida de git (`*.pcap`); con `--anonymize` el informe solo guarda el nombre del fichero |
+| La captura es un dato sensible (todo el tráfico en claro) | aviso en el registro, `.gitignore` | `sniffer.py:573-574` | Excluida de git (`*.pcap`); con `--anonymize` el informe solo guarda el nombre del fichero |
 | GUI | casilla y diálogo "Guardar captura" | `gui.py:217-220`, `:356-362` | Solo activa en modos con escucha; si se cancela el diálogo, no se empieza |
 
 La fase de ARP scan no se guarda (la hace `srp` antes de escuchar): la captura empieza con la
@@ -368,6 +368,63 @@ un móvil pueden revelar hábitos de navegación.
 |---|---|---|---|
 | Filtrar sin perder datos: ocultar filas, no borrarlas | `tree.detach` / `tree.reattach` | `gui.py:577-590` | Busca el texto en IP, MAC, fabricante, hostname y tipo mientras se escribe; muestra "N de M" |
 
+## Hito 6 — Primera prueba real frente a Wireshark (2026-11-19)
+
+Captura en una red compartida (`10.1.193.0/24`, Wi-Fi, sin punto de acceso propio): una de
+Wireshark (`.pcapng`, 3826 paquetes en 22 s) y otra del programa (`.pcap`, 1826 en 30 s),
+analizadas en local con `--pcap` y con `tshark`. Las capturas **no** están en el repositorio
+(datos de una red real); los fallos se reproducen con tráfico sintético en
+`tests/test_prueba_real.py`.
+
+### Qué coincide
+
+| Comprobación | Wireshark (`tshark`) | Escáner |
+|---|---|---|
+| Dispositivos (MAC de origen unicast distintas) | 156 | 156 |
+| Dispositivos con TXT de mDNS | 23 | 23 (los mismos); modelo en 21 |
+| SSDP | 192 mensajes, todos `M-SEARCH` | 35 banners, 0 tipos UPnP (correcto: buscar no es ser) |
+| `.pcapng` de Wireshark | — | se lee sin conversión |
+
+### Qué no se ve (y por qué)
+
+- **SNI/JA3:** Wireshark muestra 2 ClientHello, los dos por **QUIC** (Chrome del portátil);
+  por TCP no empezó ninguna conexión durante la captura (0 SYN a 443). QUIC se descartó en la
+  lista de Kiro y aquí se confirma que no viene de ningún IoT.
+- **Unicast de los IoT:** todo el TCP es portátil ↔ router. Capturando por Wi-Fi sin punto de
+  acceso propio solo llega lo propio y el broadcast/multicast (como dice `THREAT_MODEL.md`).
+- **NBNS y LLMNR** (31 y 62 mensajes): todo son **preguntas** por otros nombres; no dicen qué es
+  quien pregunta. **NDP** no hace falta: cualquier paquete IPv6 ya crea el dispositivo.
+- La red es sobre todo de portátiles y móviles (38 Apple, 37 Windows, 53 MAC aleatorias); IoT
+  de verdad, pocos (11 Chromecast/TV, 6 altavoces). Para el Hito 6 hace falta el laboratorio
+  propio con el portátil como punto de acceso.
+
+### Fallo 1: el router con una IP de internet
+
+Un router reenvía el tráfico de internet con **su propia MAC**: con la MAC del Fortinet llegaban
+IP de servidores (`199.232.215.52`, `160.79.104.10`…) y el escáner se quedaba con la primera
+(`160.79.104.10`), aunque por ARP el router decía ser `10.1.192.1`.
+
+| Teoría | Código | Dónde | Qué hace |
+|---|---|---|---|
+| ARP liga una IP a una MAC en la propia red: es la fuente fiable | `self._arp_ip`, `_ip_from_arp()` | `sniffer.py:442`, `:452-454`, `:487` | La IP del ARP (pasivo o del ARP scan) manda sobre la de los paquetes IP; se queda la primera (proxy ARP) |
+| Sin ARP, una privada gana a una pública | `_better_ip()`, `is_global_ip()` | `sniffer.py:456-467`, `:139-144`, `:492` | Privadas, link-local y CGNAT no son "globales"; una pública solo se usa si no hay otra |
+
+Resultado en las dos capturas: el router pasa a `10.1.192.1` y ningún dispositivo queda con IP
+pública.
+
+### Fallo 2: quien busca por SSDP no es un aparato multimedia
+
+La regla "Dispositivo UPnP / multimedia" tenía `client_ports: [1900]`: 7 portátiles salían con
+esa etiqueta (confianza baja) solo por hacer `M-SEARCH`. Buscar UPnP es lo que hace un cliente
+(Chrome buscando Chromecast), no un aparato multimedia. Se quitó de `rules.json`; las 7 pasan a
+"Sin identificar" (más honesto), la cobertura de reglas sigue en 15/15 y los PC Windows que sí
+**sirven** UPnP (`UPnP-Device-Host`) siguen saliendo como UPnP, con "Equipo Windows" detrás.
+
+**Para calibrar más adelante:** "Equipo Windows" sale del `USER-AGENT` de Chrome en el M-SEARCH
+(`Chromium/128 ... Windows`), +2 con confianza baja: acierta, pero es una sola pista.
+
+---
+
 ## Mejoras propuestas por Kiro (2026-11-19): JA3, DHCPv6, riesgo y eTLD+1
 
 El autor eligió 4 de la lista de **Kiro**; de las otras, TXT de mDNS y la opción 55 de DHCP ya
@@ -384,11 +441,11 @@ las extensiones desde 2023, y para eso existe JA4.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Un único parser para SNI y JA3 | `parse_client_hello()` | `sniffer.py:360-409` | Devuelve `{"sni", "ja3"}`; `tls_sni()` (`:417-420`) sigue igual para lo que ya lo usaba |
-| GREASE (RFC 8701): valores `0x?a?a` al azar que cambian en cada conexión | `TLS_GREASE` | `sniffer.py:353` | JA3 los quita; si no, la huella cambiaría en cada conexión |
-| Curvas (extensión 10) y formatos de punto (11) | `ext_type == 0x000A / 0x000B` | `sniffer.py:399-402` | Se leen en el mismo recorrido de las extensiones |
-| ClientHello partido en varios segmentos TCP | `complete` | `sniffer.py:384`, `:405-408` | Si la lista de extensiones no está entera, **no** hay JA3 (saldría una huella falsa); el SNI sí, si llegó |
-| MD5 como identificador, no como protección | `ja3_hash()` | `sniffer.py:412-414` | `usedforsecurity=False` (bandit lo acepta) |
+| Un único parser para SNI y JA3 | `parse_client_hello()` | `sniffer.py:368-417` | Devuelve `{"sni", "ja3"}`; `tls_sni()` (`:417-420`) sigue igual para lo que ya lo usaba |
+| GREASE (RFC 8701): valores `0x?a?a` al azar que cambian en cada conexión | `TLS_GREASE` | `sniffer.py:361` | JA3 los quita; si no, la huella cambiaría en cada conexión |
+| Curvas (extensión 10) y formatos de punto (11) | `ext_type == 0x000A / 0x000B` | `sniffer.py:407-410` | Se leen en el mismo recorrido de las extensiones |
+| ClientHello partido en varios segmentos TCP | `complete` | `sniffer.py:392`, `:413-416` | Si la lista de extensiones no está entera, **no** hay JA3 (saldría una huella falsa); el SNI sí, si llegó |
+| MD5 como identificador, no como protección | `ja3_hash()` | `sniffer.py:420-422` | `usedforsecurity=False` (bandit lo acepta) |
 | Pista fuerte en las reglas | campo `ja3` | `heuristics.py:62`, `:194-195` | Coincidencia exacta del MD5 (+3). Sin reglas todavía: las huellas reales saldrán del Hito 6 |
 
 ### DHCPv6: nombre y vendor class
@@ -398,10 +455,10 @@ opción 12. En DHCPv6 (RFC 8415) el cliente habla desde el puerto **546** y pued
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Solo cuenta lo que manda el cliente | `sport == PORT_DHCP6_CLIENT` | `sniffer.py:136`, `:507` | Las respuestas del servidor (547) no describen al dispositivo |
-| En Scapy los mensajes (Solicit, Request…) son subclases de `DHCP6`, y `haslayer()` no las reconoce | `issubclass(layer, DHCP6)` | `sniffer.py:141` | Comprueba las capas a mano |
-| Opción 39, Client FQDN (RFC 4704) | `DHCP6OptClientFQDN` | `sniffer.py:144-148` | Primera etiqueta como hostname, **solo si no había** (DHCPv4 y mDNS mandan) |
-| Opción 16, Vendor Class (número de empresa de IANA + textos) | `DHCP6OptVendorClass` | `sniffer.py:149-154` | Banner `DHCPv6:...` saneado, como mucho 8 |
+| Solo cuenta lo que manda el cliente | `sport == PORT_DHCP6_CLIENT` | `sniffer.py:136`, `:535` | Las respuestas del servidor (547) no describen al dispositivo |
+| En Scapy los mensajes (Solicit, Request…) son subclases de `DHCP6`, y `haslayer()` no las reconoce | `issubclass(layer, DHCP6)` | `sniffer.py:149` | Comprueba las capas a mano |
+| Opción 39, Client FQDN (RFC 4704) | `DHCP6OptClientFQDN` | `sniffer.py:152-156` | Primera etiqueta como hostname, **solo si no había** (DHCPv4 y mDNS mandan) |
+| Opción 16, Vendor Class (número de empresa de IANA + textos) | `DHCP6OptVendorClass` | `sniffer.py:157-162` | Banner `DHCPv6:...` saneado, como mucho 8 |
 
 ### Riesgo combinado por dispositivo
 
@@ -481,9 +538,9 @@ invierte el bit U/L. `b8:27:eb:00:00:13` → `ba27:ebff:fe00:13`.
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Sacar la MAC del identificador de interfaz | `eui64_mac()` | `sniffer.py:165-174` | Comprueba `ff:fe` en los bytes 3-4 del identificador y deshace el bit U/L |
-| Solo las globales filtran | `leaks_mac()`, `GLOBAL_UNICAST` | `sniffer.py:162`, `:177-183` | Global **y** con la MAC real del propio dispositivo (no la de otro) |
-| Se marca al ver el paquete | `dev.eui64_global` | `sniffer.py:471-472` | Un booleano, no la dirección: así sobrevive a `--anonymize` sin revelar la IPv6 |
+| Sacar la MAC del identificador de interfaz | `eui64_mac()` | `sniffer.py:173-182` | Comprueba `ff:fe` en los bytes 3-4 del identificador y deshace el bit U/L |
+| Solo las globales filtran | `leaks_mac()`, `GLOBAL_UNICAST` | `sniffer.py:170`, `:185-191` | Global **y** con la MAC real del propio dispositivo (no la de otro) |
+| Se marca al ver el paquete | `dev.eui64_global` | `sniffer.py:499-500` | Un booleano, no la dirección: así sobrevive a `--anonymize` sin revelar la IPv6 |
 | Alerta de privacidad | `build_alerts` | `report.py:100-103` | BAJA, sin puerto |
 
 ---
@@ -508,11 +565,11 @@ El tipo va en una URN: `urn:schemas-upnp-org:device:InternetGatewayDevice:1`. El
 
 | Teoría | Código | Dónde | Qué hace |
 |---|---|---|---|
-| Solo cuenta lo que el dispositivo dice de sí mismo | `announces = NOTIFY o HTTP/` | `sniffer.py:296` | `NT`/`ST` y versiones solo de anuncios y respuestas; el banner de un `M-SEARCH` se guarda, pero no da tipo ni versiones |
-| Tipo UPnP de la URN | `_UPNP_URN` | `sniffer.py:243`, `:305-308` | Saca `InternetGatewayDevice`, `MediaRenderer`… con longitudes acotadas (64) |
-| Separar SO, protocolo, librería y producto en el `SERVER` | `parse_server_banner()` | `sniffer.py:249-276` | `Linux/3.10` = núcleo (no es firmware); `UPnP/1.0` = protocolo; `miniupnpd/2.1` = librería; `Shelly/1.0` = **producto** → su versión sí es firmware |
-| Firmware frente a librería | `_add_versions()`, `LIBRARY_NAMES` | `sniffer.py:254`, `:279-284` | Producto → `firmware`; librería → `software` (`miniupnpd/2.1`) |
-| El cliente DHCP de BusyBox lleva su versión | `_DHCP_CLIENT` | `sniffer.py:258`, `:125-130` | `udhcp 1.24.1` → `software` = `udhcp/1.24.1` (es la versión de BusyBox, no la del firmware) |
+| Solo cuenta lo que el dispositivo dice de sí mismo | `announces = NOTIFY o HTTP/` | `sniffer.py:304` | `NT`/`ST` y versiones solo de anuncios y respuestas; el banner de un `M-SEARCH` se guarda, pero no da tipo ni versiones |
+| Tipo UPnP de la URN | `_UPNP_URN` | `sniffer.py:251`, `:313-316` | Saca `InternetGatewayDevice`, `MediaRenderer`… con longitudes acotadas (64) |
+| Separar SO, protocolo, librería y producto en el `SERVER` | `parse_server_banner()` | `sniffer.py:257-284` | `Linux/3.10` = núcleo (no es firmware); `UPnP/1.0` = protocolo; `miniupnpd/2.1` = librería; `Shelly/1.0` = **producto** → su versión sí es firmware |
+| Firmware frente a librería | `_add_versions()`, `LIBRARY_NAMES` | `sniffer.py:262`, `:287-292` | Producto → `firmware`; librería → `software` (`miniupnpd/2.1`) |
+| El cliente DHCP de BusyBox lleva su versión | `_DHCP_CLIENT` | `sniffer.py:266`, `:125-130` | `udhcp 1.24.1` → `software` = `udhcp/1.24.1` (es la versión de BusyBox, no la del firmware) |
 | Pista fuerte en las reglas | campo `upnp` de las reglas | `heuristics.py:60`, `:187-189`, `rules.json:73`, `:86` | Router: `InternetGatewayDevice`, `WANIPConnection`…; multimedia: `MediaRenderer`… IGD y WANIPConnection los anuncia el mismo router: cuentan **una vez** (+3) |
 | UPnP IGD: cualquier equipo de la LAN puede pedir al router que abra puertos hacia internet, sin autenticación | `SENSITIVE_UPNP` | `report.py:53-62`, `:97-99` | Alerta MEDIA por IGD, WANIPConnection o WANPPPConnection |
 | Las librerías tienen CVE propios, con su versión | `SOFTWARE_CPE`, `device_software()` | `vulns.py:74-81`, `:250-257`, `:391` | `miniupnpd` → `miniupnp_project:miniupnpd`, `udhcp` → `busybox:busybox`; el rango se compara con la versión de la librería |
